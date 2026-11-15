@@ -1,0 +1,74 @@
+{
+  "name": "Scenario 6: Content Storage & Google Drive / Sheets Orchestrator",
+  "description": "Orchestrates folder hierarchy under /AI Content Factory/2026/Video_ID/ (Research, Scripts, SEO, Thumbnails, Video_Assets, Publishing) and ensures full metadata sync.",
+  "modules": [
+    {
+      "id": 1,
+      "module": "gateway:CustomWebhook",
+      "version": 1,
+      "parameters": {
+        "name": "Storage Orchestrator Webhook"
+      },
+      "metadata": {
+        "designer": { "x": 100, "y": 200 },
+        "name": "Trigger Storage Organization"
+      }
+    },
+    {
+      "id": 2,
+      "module": "google-drive:createAFolder",
+      "version": 1,
+      "parameters": {
+        "folderName": "{{1.idea_id}}",
+        "parentFolderId": "{{connection.GDRIVE_2026_ROOT_FOLDER_ID}}"
+      },
+      "metadata": {
+        "designer": { "x": 300, "y": 200 },
+        "name": "Create Root Video Directory"
+      }
+    },
+    {
+      "id": 3,
+      "module": "builtin:Iterator",
+      "version": 1,
+      "parameters": {
+        "array": ["Research", "Scripts", "SEO", "Thumbnails", "Video_Assets", "Publishing"]
+      },
+      "metadata": {
+        "designer": { "x": 500, "y": 200 },
+        "name": "Iterate Subfolders"
+      }
+    },
+    {
+      "id": 4,
+      "module": "google-drive:createAFolder",
+      "version": 1,
+      "parameters": {
+        "folderName": "{{3.value}}",
+        "parentFolderId": "{{2.folderId}}"
+      },
+      "metadata": {
+        "designer": { "x": 750, "y": 200 },
+        "name": "Create Subfolder"
+      }
+    },
+    {
+      "id": 5,
+      "module": "google-sheets:updateRow",
+      "version": 2,
+      "parameters": {
+        "spreadsheetId": "{{connection.SPREADSHEET_ID}}",
+        "sheetId": "Ideas",
+        "rowId": "{{1.sheet_row_id}}",
+        "values": {
+          "Status": "Folders Provisioned",
+          "DriveFolderLink": "{{2.webViewLink}}"
+        }
+      },
+      "metadata": {
+        "designer": { "x": 1000, "y": 200 },
+        "name": "Update Sheets with Drive Links"
+      }
+    }
+  ]
+}

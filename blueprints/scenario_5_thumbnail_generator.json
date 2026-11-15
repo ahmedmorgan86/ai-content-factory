@@ -1,0 +1,132 @@
+{
+  "name": "Scenario 5: AI Thumbnail Generator & Multi-Platform Visual Pipeline",
+  "description": "Generates DALL-E 3 image prompt, creates visual via OpenAI Image API, transforms & resizes (1280x720 16:9 for YouTube and 1080x1920 9:16 for Vertical Shorts) via Cloudinary / Pillow, saves to Drive, and requests Telegram approval.",
+  "modules": [
+    {
+      "id": 1,
+      "module": "gateway:CustomWebhook",
+      "version": 1,
+      "parameters": {
+        "name": "Thumbnail Trigger Webhook"
+      },
+      "metadata": {
+        "designer": { "x": 100, "y": 250 },
+        "name": "Receive Thumbnail Request"
+      }
+    },
+    {
+      "id": 2,
+      "module": "openai-gpt-4:createChatCompletion",
+      "version": 1,
+      "parameters": {
+        "model": "gpt-4o",
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are the Thumbnail Art Director. Output strict JSON with DALL-E 3 cinematic English prompt (no text in image) and Arabic bold typography overlay recommendations as per prompts/06_thumbnail_visual_prompt.md."
+          },
+          {
+            "role": "user",
+            "content": "Create thumbnail prompt for: {{1.title}}"
+          }
+        ],
+        "response_format": { "type": "json_object" }
+      },
+      "metadata": {
+        "designer": { "x": 300, "y": 250 },
+        "name": "OpenAI: Prompt Engineering"
+      }
+    },
+    {
+      "id": 3,
+      "module": "json:ParseJSON",
+      "version": 1,
+      "parameters": {
+        "json": "{{2.choices[1].message.content}}"
+      },
+      "metadata": {
+        "designer": { "x": 500, "y": 250 },
+        "name": "Parse Thumbnail Directions"
+      }
+    },
+    {
+      "id": 4,
+      "module": "openai-gpt-4:generateAnImage",
+      "version": 1,
+      "parameters": {
+        "model": "dall-e-3",
+        "prompt": "{{3.dalle_image_prompt}}",
+        "size": "1024x1024",
+        "quality": "standard"
+      },
+      "metadata": {
+        "designer": { "x": 700, "y": 250 },
+        "name": "OpenAI: Generate Raw Image"
+      }
+    },
+    {
+      "id": 5,
+      "module": "cloudinary:uploadAnImage",
+      "version": 1,
+      "parameters": {
+        "file": "{{4.data[1].url}}",
+        "public_id": "thumb_{{1.idea_id}}_raw",
+        "folder": "ai_content_factory/thumbnails"
+      },
+      "metadata": {
+        "designer": { "x": 900, "y": 250 },
+        "name": "Cloudinary: Upload & Dynamic Resize"
+      }
+    },
+    {
+      "id": 6,
+      "module": "google-sheets:addRow",
+      "version": 2,
+      "parameters": {
+        "spreadsheetId": "{{connection.SPREADSHEET_ID}}",
+        "sheetId": "Thumbnails",
+        "values": [
+          "THUMB-{{1.idea_id}}",
+          "{{1.idea_id}}",
+          "{{3.dalle_image_prompt}}",
+          "{{4.data[1].url}}",
+          "https://res.cloudinary.com/{{connection.CLOUDINARY_CLOUD_NAME}}/image/upload/c_fill,w_1280,h_720,q_auto,f_auto/{{5.public_id}}.jpg",
+          "https://res.cloudinary.com/{{connection.CLOUDINARY_CLOUD_NAME}}/image/upload/c_fill,w_1080,h_1920,g_auto,q_auto,f_auto/{{5.public_id}}.jpg",
+          "No",
+          "{{3.recommended_arabic_headline}}",
+          "{{5.public_id}}",
+          "Verified (1280x720 & 1080x1920)",
+          "Generated & Resized",
+          "{{formatDate(now; \"YYYY-MM-DD\")}}"
+        ]
+      },
+      "metadata": {
+        "designer": { "x": 1100, "y": 250 },
+        "name": "Record Thumbnails in Sheets"
+      }
+    },
+    {
+      "id": 7,
+      "module": "telegram:sendPhoto",
+      "version": 1,
+      "parameters": {
+        "chatId": "{{connection.TELEGRAM_ADMIN_CHAT_ID}}",
+        "photo": "{{4.data[1].url}}",
+        "caption": "🎨 <b>تم توليد حزمة الصورة المصغرة بنجاح!</b>\n\n📌 <b>العنوان:</b> {{1.title}}\n✍️ <b>النص المقترح:</b> {{3.recommended_arabic_headline}}\n📐 <b>المقاسات المجهزة:</b>\n- YouTube (1280×720)\n- Shorts/Reels (1080×1920)\n\nهل توافق على الصورة للمتابعة؟",
+        "parse_mode": "HTML",
+        "reply_markup": {
+          "inline_keyboard": [
+            [
+              { "text": "✅ اعتماد وتجهيز النشر", "callback_data": "action:approve_publish:{{1.idea_id}}" },
+              { "text": "🔄 إعادة توليد الصورة", "callback_data": "action:regen_thumb:{{1.idea_id}}" }
+            ]
+          ]
+        }
+      },
+      "metadata": {
+        "designer": { "x": 1300, "y": 250 },
+        "name": "Telegram: Send Photo & Approval Buttons"
+      }
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+﻿Key,Value,Description,Allowed Options / Notes
+niche,Technology & Artificial Intelligence,مجال القناة الأساسي,"Tech, AI"
+target_audience,"Arab Youth, Tech Enthusiasts, AI Creators, Business Owners",الجمهور المستهدف,General Tech
+country,Egypt / Arab World,الدولة والمنطقة المستهدفة,MENA
+language,Egyptian Arabic,اللغة الأساسية للمحتوى والسكريبت,Egyptian Arabic
+main_platforms,"YouTube, YouTube Shorts, TikTok, Instagram Reels, Facebook Reels",المنصات المستهدفة للنشر,Multi-platform
+ideas_per_batch,20,عدد الأفكار لكل دفعة بحث,10-50
+content_style,"Educational, Engaging, Professional, Conversational",طبيعة ونبرة المحتوى,Engaging/Educational
+brand_colors,"#0F172A, #38BDF8, #818CF8","ألوان الهوية البصرية (Dark Slate, Light Blue, Indigo)",HEX Codes
+brand_identity,Future Tech Navigator - موجه التكنولوجيا المستقبلي,شخصية وهوية البراند,Text
+telegram_authorized_users,123456789,معرفات تليجرام المسموح لها بإدارة النظام,Comma-separated user IDs

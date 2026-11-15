@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Content Factory | غرفة قيادة مصنع المحتوى الذكي</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            850: '#151f32',
+                            950: '#070d18',
+                        },
+                        cyberCyan: '#38bdf8',
+                        cyberIndigo: '#818cf8',
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/css/custom.css">
+</head>
+<body class="bg-[#0b1120] text-slate-100 min-h-screen flex flex-col antialiased selection:bg-sky-500 selection:text-white">
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-6 left-6 z-50 flex flex-col space-y-3 pointer-events-none"></div>
+
+    <!-- Top Navigation Header -->
+    <header class="sticky top-0 z-40 bg-[#0f172a]/90 backdrop-blur-md border-b border-sky-500/20 px-6 py-3.5">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <!-- Brand & Status -->
+            <div class="flex items-center space-x-4 space-x-reverse">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center text-white shadow-lg glow-cyan">
+                    <i class="fa-solid fa-microchip text-xl"></i>
+                </div>
+                <div>
+                    <div class="flex items-center space-x-2 space-x-reverse">
+                        <h1 class="text-lg font-black tracking-wide bg-gradient-to-l from-white via-slate-100 to-sky-400 bg-clip-text text-transparent">
+                            AI Content Factory
+                        </h1>
+                        <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/30">
+                            v1.0 (2026)
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span>غرفة التحكم والأوتوميشن الذكية | اللهجة المصرية للمحتوى التقني</span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Quick Action Command Buttons -->
+            <div class="flex items-center flex-wrap gap-2.5">
+                <button id="btn-run-full-cycle" onclick="runFullPipelineCycle()" class="px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-l from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white shadow-lg shadow-sky-500/20 transition flex items-center space-x-2 space-x-reverse">
+                    <i class="fa-solid fa-bolt-lightning text-amber-300"></i>
+                    <span>تشغيل الدورة الشاملة</span>
+                </button>
+                <button id="btn-gen-ideas" onclick="triggerGenerateIdeas()" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center space-x-2 space-x-reverse">
+                    <i class="fa-solid fa-lightbulb text-amber-400"></i>
+                    <span>توليد 20 فكرة</span>
+                </button>
+                <button onclick="triggerRefreshAnalytics()" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center space-x-2 space-x-reverse">
+                    <i class="fa-solid fa-chart-line text-emerald-400"></i>
+                    <span>تحديث التقرير</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Sub-Navbar / Tabs -->
+    <div class="bg-[#0d1527] border-b border-slate-800 px-6 py-2">
+        <div class="max-w-7xl mx-auto flex items-center space-x-1 space-x-reverse overflow-x-auto text-xs font-bold">
+            <button class="nav-tab px-4 py-2 rounded-xl border border-sky-500/50 bg-sky-500/20 text-sky-400 flex items-center space-x-2 space-x-reverse transition" data-tab="dashboard">
+                <i class="fa-solid fa-gauge-high"></i>
+                <span>غرفة القيادة (Dashboard)</span>
+            </button>
+            <button class="nav-tab px-4 py-2 rounded-xl border border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-2 space-x-reverse transition" data-tab="ideas">
+                <i class="fa-solid fa-lightbulb"></i>
+                <span>بنك الأفكار (Idea Bank)</span>
+            </button>
+            <button class="nav-tab px-4 py-2 rounded-xl border border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-2 space-x-reverse transition" data-tab="studio">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                <span>استوديو الإنتاج (Studio)</span>
+            </button>
+            <button class="nav-tab px-4 py-2 rounded-xl border border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-2 space-x-reverse transition" data-tab="publishing">
+                <i class="fa-solid fa-share-nodes"></i>
+                <span>بوابة النشر والاعتماد (Publishing)</span>
+            </button>
+            <button class="nav-tab px-4 py-2 rounded-xl border border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-2 space-x-reverse transition" data-tab="analytics">
+                <i class="fa-solid fa-chart-pie"></i>
+                <span>تحليلات النمو والتقرير الأسبوعي</span>
+            </button>
+            <button class="nav-tab px-4 py-2 rounded-xl border border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-2 space-x-reverse transition" data-tab="settings">
+                <i class="fa-solid fa-sliders"></i>
+                <span>الإعدادات والربط السحابي</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Workspace Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-6">
+
+        <!-- ========================================== -->
+        <!-- TAB 1: DASHBOARD (نظرة عامة) -->
+        <!-- ========================================== -->
+        <section id="tab-dashboard" class="tab-content space-y-6">
+            <!-- Pipeline Flow Stepper -->
+            <div class="glass-panel p-5 rounded-2xl border border-slate-700/60">
+                <div class="flex items-center justify-between mb-4">
+                    <span class="text-xs font-bold text-slate-300 flex items-center gap-2">
+                        <i class="fa-solid fa-diagram-project text-sky-400"></i>
+                        <span>مخطط خط الإنتاج الذكي (Autonomous 8-Step Pipeline)</span>
+                    </span>
+                    <span class="text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
+                        <i class="fa-solid fa-check ml-1"></i>جميع السيناريوهات مفعّلة
+                    </span>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 text-center text-xs">
+                    <div class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                        <div class="w-7 h-7 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center mx-auto mb-1.5"><i class="fa-solid fa-rss"></i></div>
+                        <span class="font-bold text-slate-200 text-[11px]">1. مسح الأخبار</span>
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                        <div class="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto mb-1.5"><i class="fa-solid fa-brain"></i></div>
+                        <span class="font-bold text-slate-200 text-[11px]">2. تقييم 20 فكرة</span>
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                        <div class="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto mb-1.5"><i class="fa-solid fa-table"></i></div>
+                        <span class="font-bold text-slate-200 text-[11px]">3. قاعدة البيانات</span>
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                        <div class="w-7 h-7 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center mx-auto mb-1.5"><i class="fa-brands fa-telegram"></i></div>
+                        <span class="font-bold text-slate-200 text-[11px]">4. تحكم Telegram</span>
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                        <div class="w-7 h-7 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center mx-auto mb-1.5"><i class="fa-solid fa-pen-nib"></i></div>
+                        <span class="font-bold text-slate-200 text-[11px]">5. سكريبت مصري</span>
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                        <div class="w-7 h-7 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center mx-auto mb-1.5"><i class="fa-solid fa-tags"></i></div>
+                        <span class="font-bold text-slate-200 text-[11px]">6. حزمة الـ SEO</span>
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                        <div class="w-7 h-7 rounded-lg bg-pink-500/20 text-pink-400 flex items-center justify-center mx-auto mb-1.5"><i class="fa-solid fa-image"></i></div>
+                        <span class="font-bold text-slate-200 text-[11px]">7. صور سينمائية</span>
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                        <div class="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto mb-1.5"><i class="fa-solid fa-shield-halved"></i></div>
+                        <span class="font-bold text-slate-200 text-[11px]">8. بوابة الاعتماد</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KPI Cards Grid -->
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div class="glass-panel p-4 rounded-2xl border border-slate-800 flex flex-col justify-between">
+                    <span class="text-xs text-slate-400">إجمالي الأفكار</span>
+                    <h3 id="kpi-total-ideas" class="text-2xl font-black text-sky-400 my-1">--</h3>
+                    <span class="text-[10px] text-slate-500 font-medium">مفلترة ومقيّمة بدقة</span>
+                </div>
+                <div class="glass-panel p-4 rounded-2xl border border-slate-800 flex flex-col justify-between">
+                    <span class="text-xs text-slate-400">حزم جاهزة للإنتاج</span>
+                    <h3 id="kpi-ready-packages" class="text-2xl font-black text-emerald-400 my-1">--</h3>
+                    <span class="text-[10px] text-slate-500 font-medium">أصول مكتملة وتخزين</span>
+                </div>
+                <div class="glass-panel p-4 rounded-2xl border border-slate-800 flex flex-col justify-between">
+                    <span class="text-xs text-slate-400">إجمالي المشاهدات</span>
+                    <h3 id="kpi-total-views" class="text-2xl font-black text-amber-400 my-1">--</h3>
+                    <span class="text-[10px] text-emerald-400 font-medium">+35% نمو أسبوعي</span>
+                </div>
+                <div class="glass-panel p-4 rounded-2xl border border-slate-800 flex flex-col justify-between">
+                    <span class="text-xs text-slate-400">متوسط نسبة النقر (CTR)</span>
+                    <h3 id="kpi-avg-ctr" class="text-2xl font-black text-indigo-400 my-1">--</h3>
+                    <span class="text-[10px] text-slate-500 font-medium">المعدل العام: 6-8%</span>
+                </div>
+                <div class="glass-panel p-4 rounded-2xl border border-slate-800 flex flex-col justify-between">
+                    <span class="text-xs text-slate-400">المشتركون الجدد</span>
+                    <h3 id="kpi-subscribers" class="text-2xl font-black text-cyan-400 my-1">--</h3>
+                    <span class="text-[10px] text-slate-500 font-medium">من المحتوى المؤتمت</span>
+                </div>
+                <div class="glass-panel p-4 rounded-2xl border border-slate-800 flex flex-col justify-between">
+                    <span class="text-xs text-slate-400">وقت المشاهدة</span>
+                    <h3 id="kpi-watch-hours" class="text-2xl font-black text-purple-400 my-1">--</h3>
+                    <span class="text-[10px] text-slate-500 font-medium">ساعات مشاهدة فعلية</span>
+                </div>
+            </div>
+
+            <!-- Dashboard Split View -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Recent Ideas List (2 cols) -->
+                <div class="lg:col-span-2 glass-panel p-6 rounded-2xl border border-slate-700/60">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+                            <i class="fa-solid fa-clock-rotate-left text-sky-400"></i>
+                            <span>أحدث الأفكار المولدة وجاهزيتها للتنفيذ</span>
+                        </h3>
+                        <button onclick="switchTab('ideas')" class="text-xs text-sky-400 hover:text-sky-300 font-semibold">
+                            عرض بنك الأفكار كاملاً <i class="fa-solid fa-arrow-left text-[10px] mr-1"></i>
+                        </button>
+                    </div>
+                    <div id="recent-ideas-list" class="space-y-2.5">
+                        <div class="text-center py-6 text-slate-500 text-xs">جاري التحميل...</div>
+                    </div>
+                </div>
+
+                <!-- System Config & Identity Card (1 col) -->
+                <div class="glass-panel p-6 rounded-2xl border border-slate-700/60 space-y-4">
+                    <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+                        <i class="fa-solid fa-fingerprint text-indigo-400"></i>
+                        <span>هوية المحتوى وإعدادات التشغيل</span>
+                    </h3>
+                    <div class="space-y-3 text-xs">
+                        <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                            <span class="text-slate-400 block mb-0.5">النيش والجمهور المستهدف:</span>
+                            <span class="font-bold text-slate-200">Technology & Artificial Intelligence</span>
+                        </div>
+                        <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                            <span class="text-slate-400 block mb-0.5">اللغة والنبرة:</span>
+                            <span class="font-bold text-emerald-400">Egyptian Tech Arabic (اللهجة المصرية المعاصرة)</span>
+                        </div>
+                        <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                            <span class="text-slate-400 block mb-0.5">الهوية البصرية والألوان:</span>
+                            <div class="flex items-center space-x-2 space-x-reverse mt-1.5">
+                                <span class="w-5 h-5 rounded-md bg-[#0F172A] border border-slate-700" title="#0F172A"></span>
+                                <span class="w-5 h-5 rounded-md bg-[#38BDF8]" title="#38BDF8"></span>
+                                <span class="w-5 h-5 rounded-md bg-[#818CF8]" title="#818CF8"></span>
+                                <span class="text-[11px] font-mono text-slate-400 mr-2">Dark Slate, Electric Cyan, Indigo</span>
+                            </div>
+                        </div>
+                        <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                            <span class="text-slate-400 block mb-0.5">قاعدة البيانات السحابية والمحلية:</span>
+                            <span class="font-bold text-slate-200">Google Sheets / AI_Content_Factory_Database.xlsx</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- TAB 2: IDEAS BANK (بنك الأفكار) -->
+        <!-- ========================================== -->
+        <section id="tab-ideas" class="tab-content hidden space-y-6">
+            <!-- Search & Filter Bar -->
+            <div class="glass-panel p-4 rounded-2xl border border-slate-700/60 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div class="flex items-center space-x-3 space-x-reverse flex-1">
+                    <div class="relative flex-1">
+                        <i class="fa-solid fa-magnifying-glass absolute right-3.5 top-3 text-slate-400 text-xs"></i>
+                        <input type="text" id="ideas-search-input" oninput="loadIdeas(document.getElementById('ideas-filter-type').value, this.value)" placeholder="ابحث في عناوين الأفكار أو الكلمات المفتاحية..." class="w-full pl-4 pr-10 py-2 rounded-xl bg-slate-900/80 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-sky-500">
+                    </div>
+                    <select id="ideas-filter-type" onchange="loadIdeas(this.value, document.getElementById('ideas-search-input').value)" class="px-3.5 py-2 rounded-xl bg-slate-900/80 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-sky-500">
+                        <option value="all">جميع الأنواع (All)</option>
+                        <option value="Long-form">فيديوهات طويلة فقط (8-12 د)</option>
+                        <option value="Short-form">شورتس وريلز فقط (45-60 ث)</option>
+                    </select>
+                </div>
+
+                <div class="flex items-center space-x-3 space-x-reverse">
+                    <span id="ideas-count-badge" class="text-xs font-mono px-3 py-1.5 rounded-lg bg-slate-800 text-sky-400 border border-slate-700 font-bold">
+                        0 فكرة
+                    </span>
+                    <button onclick="triggerGenerateIdeas()" class="px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-l from-sky-500 to-indigo-600 text-white shadow-md hover:from-sky-400 hover:to-indigo-500 transition flex items-center space-x-2 space-x-reverse">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>توليد دفعة جديدة (20 فكرة)</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Ideas Cards Grid -->
+            <div id="ideas-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                <div class="text-center py-12 text-slate-500 col-span-3">جاري تحميل الأفكار...</div>
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- TAB 3: PRODUCTION STUDIO (استوديو الإنتاج) -->
+        <!-- ========================================== -->
+        <section id="tab-studio" class="tab-content hidden space-y-6">
+            <!-- Studio Toolbar -->
+            <div class="glass-panel p-4 rounded-2xl border border-slate-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div class="flex items-center space-x-3 space-x-reverse">
+                    <span class="text-xs font-bold text-slate-300">أدخل معرّف الفكرة (Idea ID) للاستعراض أو الإنتاج:</span>
+                    <input type="text" id="studio-idea-input" placeholder="مثال: IDEA-2026-001" class="px-3.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-sky-400 focus:outline-none focus:border-sky-500">
+                    <button onclick="openStudio(document.getElementById('studio-idea-input').value)" class="px-4 py-1.5 rounded-lg bg-sky-500/20 text-sky-400 text-xs font-bold hover:bg-sky-500/30 transition">
+                        استعراض الأصول
+                    </button>
+                </div>
+                <div class="text-xs text-slate-400">
+                    يمكنك أيضاً النقر على زر <span class="text-sky-400 font-bold">"إنتاج الحزمة"</span> من أي فكرة في بنك الأفكار مباشرة.
+                </div>
+            </div>
+
+            <!-- Studio Package Details Container -->
+            <div id="studio-details-container">
+                <div class="text-center py-16 text-slate-500 text-xs">
+                    اختر فكرة من بنك الأفكار لاستعراض السكريبت والمشاهد والـ SEO والصور المصغرة.
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- TAB 4: PUBLISHING & APPROVALS GATE (بوابة النشر) -->
+        <!-- ========================================== -->
+        <section id="tab-publishing" class="tab-content hidden space-y-6">
+            <div class="glass-panel p-6 rounded-2xl border border-slate-700/60">
+                <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
+                    <div>
+                        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-shield-halved text-emerald-400"></i>
+                            <span>بوابة الاعتماد الأمني والنشر متعدد المنصات (Security Gate)</span>
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-1">يمنع النظام النشر التلقائي منعاً باتاً بدون موافقة صريحة من المشرف البشري.</p>
+                    </div>
+                </div>
+
+                <!-- 5 Supported Platforms -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 my-6">
+                    <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <i class="fa-brands fa-youtube text-2xl text-rose-500"></i>
+                            <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">YouTube API</span>
+                        </div>
+                        <h4 class="font-bold text-sm text-slate-200">YouTube Long</h4>
+                        <p class="text-[11px] text-slate-400">فيديو طويل بدقة 4K مع صورة 1280x720 وتوقيتات الفصول والتاجز.</p>
+                    </div>
+                    <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <i class="fa-brands fa-youtube text-2xl text-rose-400"></i>
+                            <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">Shorts API</span>
+                        </div>
+                        <h4 class="font-bold text-sm text-slate-200">YouTube Shorts</h4>
+                        <p class="text-[11px] text-slate-400">فيديو رأسي 9:16 مدة 60 ثانية مع غلاف رأسي 1080x1920.</p>
+                    </div>
+                    <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <i class="fa-brands fa-tiktok text-2xl text-cyan-400"></i>
+                            <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">TikTok API</span>
+                        </div>
+                        <h4 class="font-bold text-sm text-slate-200">TikTok</h4>
+                        <p class="text-[11px] text-slate-400">وصف مكثف 150 حرف وهاشتاجات تريند وموسيقى أصلية.</p>
+                    </div>
+                    <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <i class="fa-brands fa-instagram text-2xl text-pink-500"></i>
+                            <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">Graph API</span>
+                        </div>
+                        <h4 class="font-bold text-sm text-slate-200">Instagram Reels</h4>
+                        <p class="text-[11px] text-slate-400">كابشن تفاعلي يدعو للمتابعة وحفظ الريلز في المجموعات.</p>
+                    </div>
+                    <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <i class="fa-brands fa-facebook text-2xl text-blue-500"></i>
+                            <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">Pages API</span>
+                        </div>
+                        <h4 class="font-bold text-sm text-slate-200">Facebook Reels</h4>
+                        <p class="text-[11px] text-slate-400">جدولة عبر Meta Business مع استهداف المنطقة العربية ومصر.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- TAB 5: ANALYTICS & GROWTH (تحليلات النمو) -->
+        <!-- ========================================== -->
+        <section id="tab-analytics" class="tab-content hidden space-y-6">
+            <!-- Chart & Analytics Overview -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Interactive Chart (2 cols) -->
+                <div class="lg:col-span-2 glass-panel p-6 rounded-2xl border border-slate-700/60 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+                            <i class="fa-solid fa-chart-column text-sky-400"></i>
+                            <span>مقارنة المشاهدات ونسبة النقر للظهور (Views & CTR per Video)</span>
+                        </h3>
+                        <span class="text-xs text-slate-400">البيانات الحية من Analytics.csv</span>
+                    </div>
+                    <div class="h-64 w-full">
+                        <canvas id="analyticsChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Weekly Digest Card (1 col) -->
+                <div class="glass-panel p-6 rounded-2xl border border-slate-700/60 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between pb-3 mb-3 border-b border-slate-800">
+                            <h3 class="font-bold text-sm text-amber-400 flex items-center gap-2">
+                                <i class="fa-solid fa-bolt"></i>
+                                <span>التقرير الأسبوعي الذكي (Weekly Digest)</span>
+                            </h3>
+                            <button onclick="copyDigestText()" class="text-xs text-sky-400 hover:text-sky-300 flex items-center gap-1">
+                                <i class="fa-regular fa-copy"></i>
+                                <span>نسخ</span>
+                            </button>
+                        </div>
+                        <div id="analytics-digest-box" class="bg-slate-900/80 p-4 rounded-xl border border-slate-800 text-slate-200 text-xs leading-relaxed max-h-72 overflow-y-auto whitespace-pre-wrap">
+                            جاري تحميل التقرير...
+                        </div>
+                    </div>
+                    <div class="pt-3 border-t border-slate-800 mt-3 flex items-center justify-between">
+                        <span class="text-[11px] text-slate-400">جاهز للإرسال على تليجرام</span>
+                        <button onclick="triggerRefreshAnalytics()" class="px-3.5 py-1.5 rounded-lg bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 text-xs font-bold transition">
+                            <i class="fa-solid fa-arrows-rotate ml-1"></i> إعادة احتساب
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics Records Table -->
+            <div class="glass-panel p-6 rounded-2xl border border-slate-700/60 space-y-4">
+                <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+                    <i class="fa-solid fa-table-list text-indigo-400"></i>
+                    <span>سجل أرقام الفيديوهات المنشورة (Analytics Log)</span>
+                </h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-right border-collapse">
+                        <thead>
+                            <tr class="border-b border-slate-800 text-xs text-slate-400 font-bold">
+                                <th class="p-3">معرّف السجل</th>
+                                <th class="p-3">عنوان الفيديو</th>
+                                <th class="p-3">المنصة</th>
+                                <th class="p-3">المشاهدات</th>
+                                <th class="p-3">CTR (%)</th>
+                                <th class="p-3">تقييم الخوارزمية</th>
+                                <th class="p-3">تاريخ التسجيل</th>
+                            </tr>
+                        </thead>
+                        <tbody id="analytics-records-tbody">
+                            <tr><td colspan="7" class="text-center py-6 text-slate-500 text-xs">جاري جلب السجلات...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- TAB 6: SETTINGS (الإعدادات) -->
+        <!-- ========================================== -->
+        <section id="tab-settings" class="tab-content hidden space-y-6">
+            <div class="glass-panel p-6 rounded-2xl border border-slate-700/60 space-y-6 max-w-4xl mx-auto">
+                <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+                    <div>
+                        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-sliders text-sky-400"></i>
+                            <span>إعدادات النظام والنيش والهوية (Settings.csv)</span>
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-1">تؤثر هذه الإعدادات مباشرة على برومبتات الذكاء الاصطناعي وتوليد الأفكار والألوان.</p>
+                    </div>
+                    <button onclick="saveAllSettings()" class="px-5 py-2.5 rounded-xl bg-gradient-to-l from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs shadow-md transition flex items-center space-x-2 space-x-reverse">
+                        <i class="fa-solid fa-floppy-disk"></i>
+                        <span>حفظ التعديلات</span>
+                    </button>
+                </div>
+
+                <div id="settings-list" class="space-y-3">
+                    <div class="text-center py-6 text-slate-500 text-xs">جاري تحميل الإعدادات...</div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-800/80 bg-[#070d18] px-6 py-4 mt-auto text-xs text-slate-500">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+            <span>منظومة مصنع المحتوى الذكي (AI Content Factory) &copy; 2026 - جميع الحقوق محفوظة</span>
+            <div class="flex items-center space-x-4 space-x-reverse font-mono text-[11px]">
+                <span>Make.com Scenarios</span>
+                <span>•</span>
+                <span>FastAPI + Python 3.14</span>
+                <span>•</span>
+                <span>Telegram Bot Control</span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- App JavaScript -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

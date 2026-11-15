@@ -1,0 +1,93 @@
+{
+  "name": "Scenario 8: Performance Analytics Collector & Weekly Digest Reporter",
+  "description": "Weekly cron execution: queries YouTube Analytics & platform metrics, appends to Analytics sheet, generates AI growth synthesis, and sends an executive digest to Telegram.",
+  "modules": [
+    {
+      "id": 1,
+      "module": "gateway:CustomSchedule",
+      "version": 1,
+      "parameters": {},
+      "metadata": {
+        "designer": { "x": 100, "y": 200 },
+        "name": "Schedule (Every Monday at 09:00 AM)"
+      }
+    },
+    {
+      "id": 2,
+      "module": "youtube:getVideoStatistics",
+      "version": 1,
+      "parameters": {
+        "channelId": "{{connection.YOUTUBE_CHANNEL_ID}}"
+      },
+      "metadata": {
+        "designer": { "x": 350, "y": 200 },
+        "name": "Fetch YouTube Views & Engagement"
+      }
+    },
+    {
+      "id": 3,
+      "module": "google-sheets:addRow",
+      "version": 2,
+      "parameters": {
+        "spreadsheetId": "{{connection.SPREADSHEET_ID}}",
+        "sheetId": "Analytics",
+        "values": [
+          "REC-{{formatDate(now; \"YYYYMMDD\")}}",
+          "{{2.videoId}}",
+          "{{2.videoTitle}}",
+          "YouTube",
+          "{{2.viewCount}}",
+          "{{2.likeCount}}",
+          "{{2.commentCount}}",
+          "0",
+          "{{2.watchTimeMinutes}}",
+          "{{2.averageViewDuration}}",
+          "{{2.ctrPercent}}",
+          "{{2.subscriberGain}}",
+          "{{formatDate(now; \"YYYY-MM-DD\")}}",
+          "Calculated"
+        ]
+      },
+      "metadata": {
+        "designer": { "x": 600, "y": 200 },
+        "name": "Log Weekly Metrics into Sheets"
+      }
+    },
+    {
+      "id": 4,
+      "module": "openai-gpt-4:createChatCompletion",
+      "version": 1,
+      "parameters": {
+        "model": "gpt-4o",
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are the YouTube Growth Data Scientist. Analyze weekly numbers, detect winning formats, recommend next week topics, and generate concise Telegram report in Egyptian Arabic."
+          },
+          {
+            "role": "user",
+            "content": "Analyze this week's analytics data: {{2.data}} and output executive Telegram summary."
+          }
+        ]
+      },
+      "metadata": {
+        "designer": { "x": 850, "y": 200 },
+        "name": "OpenAI: Executive Growth Insights"
+      }
+    },
+    {
+      "id": 5,
+      "module": "telegram:sendMessage",
+      "version": 1,
+      "parameters": {
+        "chatId": "{{connection.TELEGRAM_ADMIN_CHAT_ID}}",
+        "parse_mode": "HTML",
+        "text": "📊 <b>التقرير الأسبوعي لأداء مصنع المحتوى (Weekly Growth Digest):</b>\n\n{{4.choices[1].message.content}}"
+      },
+      "metadata": {
+        "designer": { "x": 1100, "y": 200 },
+        "name": "Send Weekly Executive Digest to Telegram"
+      }
+    }
+  ]
+}

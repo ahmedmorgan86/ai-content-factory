@@ -1,0 +1,145 @@
+{
+  "name": "Scenario 2: Telegram Bot Controller & Dispatcher",
+  "description": "Handles Telegram Bot commands (/start, /ideas, /shorts, /long, /generate, /status, /settings) and button callbacks with authentication and dispatching.",
+  "modules": [
+    {
+      "id": 1,
+      "module": "telegram:watchUpdates",
+      "version": 1,
+      "parameters": {
+        "limit": 100
+      },
+      "metadata": {
+        "designer": { "x": 100, "y": 300 },
+        "name": "Telegram Webhook / Watch Updates"
+      }
+    },
+    {
+      "id": 2,
+      "module": "builtin:Router",
+      "version": 1,
+      "metadata": {
+        "designer": { "x": 350, "y": 300 },
+        "name": "Route by Command / Callback"
+      },
+      "routes": [
+        {
+          "name": "Security Authorization Check",
+          "filter": {
+            "name": "Is Authorized Admin",
+            "conditions": [
+              [
+                "{{1.message.from.id}}",
+                "equal",
+                "{{connection.TELEGRAM_ADMIN_CHAT_ID}}"
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "module": "builtin:Router",
+      "version": 1,
+      "metadata": {
+        "designer": { "x": 600, "y": 300 },
+        "name": "Command Switcher"
+      },
+      "routes": [
+        {
+          "name": "Command: /start or /help",
+          "filter": {
+            "conditions": [
+              [
+                "{{1.message.text}}",
+                "in",
+                ["/start", "/help"]
+              ]
+            ]
+          }
+        },
+        {
+          "name": "Command: /ideas or /shorts or /long",
+          "filter": {
+            "conditions": [
+              [
+                "{{1.message.text}}",
+                "starts with",
+                "/ideas"
+              ]
+            ]
+          }
+        },
+        {
+          "name": "Callback: Select Idea & Generate",
+          "filter": {
+            "conditions": [
+              [
+                "{{1.callback_query.data}}",
+                "starts with",
+                "select_idea:"
+              ]
+            ]
+          }
+        },
+        {
+          "name": "Callback: Approve / Reject / Regenerate",
+          "filter": {
+            "conditions": [
+              [
+                "{{1.callback_query.data}}",
+                "starts with",
+                "action:"
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "module": "telegram:sendMessage",
+      "version": 1,
+      "parameters": {
+        "chatId": "{{1.message.chat.id}}",
+        "parse_mode": "HTML",
+        "text": "👋 <b>أهلاً بك في غرفة قيادة مصنع المحتوى الذكي (AI Content Factory)!</b>\n\nالأوامر المتاحة:\n💡 <code>/ideas</code> - استعراض أحدث الأفكار المتوفرة\n⚡ <code>/shorts</code> - فلترة أفكار الشورتس والريلز فقط\n🎥 <code>/long</code> - فلترة أفكار الفيديوهات الطويلة\n⚙️ <code>/generate [Idea_ID]</code> - بدء إنتاج حزمة فيديو كاملة\n📊 <code>/status</code> - حالة العمليات الجارية\n📜 <code>/history</code> - الفيديوهات المنتجة والمنشورة\n🔧 <code>/settings</code> - تعديل النيش والهوية والمنصات",
+        "reply_markup": {
+          "inline_keyboard": [
+            [
+              { "text": "💡 استعراض الأفكار", "callback_data": "cmd:ideas" },
+              { "text": "⚡ شورتس فقط", "callback_data": "cmd:shorts" }
+            ],
+            [
+              { "text": "📊 حالة النظام", "callback_data": "cmd:status" },
+              { "text": "📜 الأرشيف", "callback_data": "cmd:history" }
+            ]
+          ]
+        }
+      },
+      "metadata": {
+        "designer": { "x": 850, "y": 150 },
+        "name": "Send Main Menu Keyboard"
+      }
+    },
+    {
+      "id": 5,
+      "module": "http:ActionMakeRequest",
+      "version": 3,
+      "parameters": {
+        "url": "{{connection.MAKE_WEBHOOK_SCRIPT_WRITER_URL}}",
+        "method": "POST",
+        "headers": [
+          { "name": "Content-Type", "value": "application/json" }
+        ],
+        "body": "{\"idea_id\": \"{{substring(1.callback_query.data; 12)}}\", \"user_id\": \"{{1.callback_query.from.id}}\"}",
+        "responseType": "json"
+      },
+      "metadata": {
+        "designer": { "x": 850, "y": 450 },
+        "name": "Trigger Scenario 3 (Script & Media Pipeline)"
+      }
+    }
+  ]
+}

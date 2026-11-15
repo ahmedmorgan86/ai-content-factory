@@ -1,0 +1,141 @@
+{
+  "name": "Scenario 1: AI Idea Generator (Tech & AI 2026)",
+  "description": "Searches tech sources, checks previous ideas in Google Sheets, prompts OpenAI for 20 scored ideas in Egyptian Arabic, stores them in Sheets, and notifies Telegram.",
+  "modules": [
+    {
+      "id": 1,
+      "module": "gateway:CustomSchedule",
+      "version": 1,
+      "parameters": {},
+      "metadata": {
+        "designer": { "x": 100, "y": 200 },
+        "name": "Schedule Trigger (Daily at 08:00 AM)"
+      }
+    },
+    {
+      "id": 2,
+      "module": "http:ActionMakeRequest",
+      "version": 3,
+      "parameters": {
+        "url": "https://api.tavily.com/search",
+        "method": "POST",
+        "headers": [
+          { "name": "Content-Type", "value": "application/json" }
+        ],
+        "body": "{\"api_key\": \"{{connection.TAVILY_API_KEY}}\", \"query\": \"latest artificial intelligence AI tools open source breakthrough models 2026\", \"search_depth\": \"advanced\", \"include_answer\": true, \"max_results\": 10}",
+        "responseType": "json"
+      },
+      "metadata": {
+        "designer": { "x": 300, "y": 200 },
+        "name": "Fetch AI Trends & News (Tavily / Search API)"
+      }
+    },
+    {
+      "id": 3,
+      "module": "google-sheets:searchRows",
+      "version": 2,
+      "parameters": {
+        "spreadsheetId": "{{connection.SPREADSHEET_ID}}",
+        "sheetId": "Ideas",
+        "limit": 100
+      },
+      "metadata": {
+        "designer": { "x": 500, "y": 200 },
+        "name": "Read Existing Ideas for Deduplication"
+      }
+    },
+    {
+      "id": 4,
+      "module": "openai-gpt-4:createChatCompletion",
+      "version": 1,
+      "parameters": {
+        "model": "gpt-4o",
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are the Lead Tech Viral Content Strategist for an Egyptian Arabic AI channel. Follow system_persona.md guidelines."
+          },
+          {
+            "role": "user",
+            "content": "Generate 20 unique high-performing video ideas based on these fresh trends: {{2.data.results}} and excluding existing ideas: {{3.rows.VideoTitle}}. Strict JSON output as per 01_idea_generator_prompt.md."
+          }
+        ],
+        "response_format": { "type": "json_object" },
+        "temperature": 0.7
+      },
+      "metadata": {
+        "designer": { "x": 700, "y": 200 },
+        "name": "OpenAI: 20 Scored Ideas Generator"
+      }
+    },
+    {
+      "id": 5,
+      "module": "json:ParseJSON",
+      "version": 1,
+      "parameters": {
+        "type": "custom",
+        "json": "{{4.choices[1].message.content}}"
+      },
+      "metadata": {
+        "designer": { "x": 900, "y": 200 },
+        "name": "Parse Ideas JSON Array"
+      }
+    },
+    {
+      "id": 6,
+      "module": "builtin:Iterator",
+      "version": 1,
+      "parameters": {
+        "array": "{{5.ideas}}"
+      },
+      "metadata": {
+        "designer": { "x": 1100, "y": 200 },
+        "name": "Iterate Over 20 Ideas"
+      }
+    },
+    {
+      "id": 7,
+      "module": "google-sheets:addRow",
+      "version": 2,
+      "parameters": {
+        "spreadsheetId": "{{connection.SPREADSHEET_ID}}",
+        "sheetId": "Ideas",
+        "values": [
+          "{{6.value.idea_id}}",
+          "{{6.value.video_title}}",
+          "{{6.value.video_summary}}",
+          "{{6.value.target_audience}}",
+          "{{6.value.hook}}",
+          "{{6.value.content_angle}}",
+          "{{6.value.video_type}}",
+          "{{6.value.estimated_duration}}",
+          "{{join(6.value.seo_keywords, \", \")}}",
+          "{{6.value.competition_level}}",
+          "{{6.value.interest_score}}",
+          "{{6.value.priority_score}}",
+          "{{join(6.value.research_sources, \", \")}}",
+          "New",
+          "{{formatDate(now; \"YYYY-MM-DD\")}}"
+        ]
+      },
+      "metadata": {
+        "designer": { "x": 1300, "y": 200 },
+        "name": "Insert Idea into Google Sheets"
+      }
+    },
+    {
+      "id": 8,
+      "module": "telegram:sendMessage",
+      "version": 1,
+      "parameters": {
+        "chatId": "{{connection.TELEGRAM_ADMIN_CHAT_ID}}",
+        "parse_mode": "HTML",
+        "text": "🚀 <b>تم بنجاح توليد 20 فكرة فيديو جديدة بواسطة AI Content Factory!</b>\n\n📌 <b>أبرز الأفكار المقترحة اليوم:</b>\n1. {{5.ideas[1].video_title}} (Score: {{5.ideas[1].priority_score}})\n2. {{5.ideas[2].video_title}} (Score: {{5.ideas[2].priority_score}})\n3. {{5.ideas[3].video_title}} (Score: {{5.ideas[3].priority_score}})\n\n📱 افتح البوت واكتب <code>/ideas</code> لاختيار الفكرة وبدء الإنتاج الفوري!"
+      },
+      "metadata": {
+        "designer": { "x": 1500, "y": 200 },
+        "name": "Telegram Alert: Batch Ready"
+      }
+    }
+  ]
+}

@@ -1,0 +1,142 @@
+{
+  "name": "Scenario 3: AI Script Writer & Scene Breakdown Engine",
+  "description": "Receives selected Idea ID, generates Egyptian Arabic full script (Short or Long) + 8-point Scene Breakdown, creates Google Drive folder structure, and saves to Sheets.",
+  "modules": [
+    {
+      "id": 1,
+      "module": "gateway:CustomWebhook",
+      "version": 1,
+      "parameters": {
+        "name": "Idea Selected Webhook"
+      },
+      "metadata": {
+        "designer": { "x": 100, "y": 250 },
+        "name": "Catch Selected Idea"
+      }
+    },
+    {
+      "id": 2,
+      "module": "google-sheets:searchRows",
+      "version": 2,
+      "parameters": {
+        "spreadsheetId": "{{connection.SPREADSHEET_ID}}",
+        "sheetId": "Ideas",
+        "filter": [
+          [ "Idea ID", "equal", "{{1.idea_id}}" ]
+        ]
+      },
+      "metadata": {
+        "designer": { "x": 300, "y": 250 },
+        "name": "Fetch Idea Details from Sheets"
+      }
+    },
+    {
+      "id": 3,
+      "module": "openai-gpt-4:createChatCompletion",
+      "version": 1,
+      "parameters": {
+        "model": "gpt-4o",
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are the Master Egyptian Tech Scriptwriter. Follow prompts/system_persona.md and appropriate short/long script blueprint."
+          },
+          {
+            "role": "user",
+            "content": "Generate complete natural Egyptian Arabic script and 8-point scene breakdown for Idea ID: {{2.IdeaID}}, Title: {{2.VideoTitle}}, Type: {{2.VideoType}}. Return strict JSON."
+          }
+        ],
+        "response_format": { "type": "json_object" }
+      },
+      "metadata": {
+        "designer": { "x": 500, "y": 250 },
+        "name": "OpenAI: Script & Scenes Synthesis"
+      }
+    },
+    {
+      "id": 4,
+      "module": "json:ParseJSON",
+      "version": 1,
+      "parameters": {
+        "json": "{{3.choices[1].message.content}}"
+      },
+      "metadata": {
+        "designer": { "x": 700, "y": 250 },
+        "name": "Parse Script & Scenes JSON"
+      }
+    },
+    {
+      "id": 5,
+      "module": "google-drive:createAFolder",
+      "version": 1,
+      "parameters": {
+        "folderName": "{{2.IdeaID}}",
+        "parentFolderId": "{{connection.GDRIVE_2026_FOLDER_ID}}"
+      },
+      "metadata": {
+        "designer": { "x": 900, "y": 250 },
+        "name": "Create Video Folder in Google Drive"
+      }
+    },
+    {
+      "id": 6,
+      "module": "google-drive:uploadAFile",
+      "version": 1,
+      "parameters": {
+        "folderId": "{{5.folderId}}",
+        "fileName": "script_{{2.IdeaID}}.md",
+        "data": "# {{2.VideoTitle}}\n\n## Hook:\n{{4.hook_3s}}\n\n## Full Voiceover:\n{{4.full_voiceover}}\n\n## Scenes:\n{{4.scenes}}"
+      },
+      "metadata": {
+        "designer": { "x": 1100, "y": 250 },
+        "name": "Upload Script Markdown File to Drive"
+      }
+    },
+    {
+      "id": 7,
+      "module": "google-sheets:addRow",
+      "version": 2,
+      "parameters": {
+        "spreadsheetId": "{{connection.SPREADSHEET_ID}}",
+        "sheetId": "Scripts",
+        "values": [
+          "SCR-{{2.IdeaID}}",
+          "{{2.IdeaID}}",
+          "{{2.VideoType}}",
+          "Egyptian Arabic",
+          "{{4.hook_3s}}",
+          "{{4.full_voiceover}}",
+          "{{toString(4.scenes)}}",
+          "{{4.cta}}",
+          "{{length(split(4.full_voiceover; \" \"))}}",
+          "{{4.estimated_duration}}",
+          "Draft",
+          "{{6.webViewLink}}",
+          "{{formatDate(now; \"YYYY-MM-DD HH:mm\")}}"
+        ]
+      },
+      "metadata": {
+        "designer": { "x": 1300, "y": 250 },
+        "name": "Record Script in Sheets"
+      }
+    },
+    {
+      "id": 8,
+      "module": "http:ActionMakeRequest",
+      "version": 3,
+      "parameters": {
+        "url": "{{connection.MAKE_WEBHOOK_SEO_AND_THUMBNAIL_URL}}",
+        "method": "POST",
+        "headers": [
+          { "name": "Content-Type", "value": "application/json" }
+        ],
+        "body": "{\"idea_id\": \"{{2.IdeaID}}\", \"title\": \"{{2.VideoTitle}}\", \"script\": \"{{4.full_voiceover}}\", \"folder_id\": \"{{5.folderId}}\"}",
+        "responseType": "json"
+      },
+      "metadata": {
+        "designer": { "x": 1500, "y": 250 },
+        "name": "Trigger SEO & Thumbnail Scenarios"
+      }
+    }
+  ]
+}

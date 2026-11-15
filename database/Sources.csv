@@ -1,0 +1,7 @@
+﻿Source ID,Source Name,Source URL / RSS,Category,Reliability Level,Fetch Frequency,Status
+SRC-01,OpenAI Official Blog & Changelog,https://openai.com/news/rss.xml,AI Research & Releases,High (Primary Source),Daily,Active
+SRC-02,Google DeepMind Research,https://deepmind.google/discover/blog/rss.xml,Core AI Breakthroughs,High (Primary Source),Daily,Active
+SRC-03,Hugging Face Daily Papers,https://huggingface.co/papers,Open Source & New Models,High (Technical),Daily,Active
+SRC-04,TechCrunch AI Section,https://techcrunch.com/category/artificial-intelligence/feed/,Industry & Funding News,Medium-High,Daily,Active
+SRC-05,Product Hunt AI Leaderboard,https://www.producthunt.com/topics/artificial-intelligence,New Consumer Tools,Medium (Trends),Daily,Active
+SRC-06,Reddit r/ArtificialIntelligence & r/LocalLlama,https://www.reddit.com/r/ArtificialIntelligence/.rss,Community Questions & Sentiment,Medium (Audience Pulse),Daily,Active
