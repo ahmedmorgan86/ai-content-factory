@@ -240,6 +240,10 @@ async function openStudio(ideaId) {
 
     try {
         const res = await fetch(`/api/production/${ideaId}`);
+        if (!res.ok) {
+            const errBody = await res.text();
+            throw new Error(`خطأ (${res.status}): ${errBody || res.statusText}`);
+        }
         const data = await res.json();
         state.currentProduction = data;
         renderStudioPackage(data);
@@ -474,6 +478,10 @@ async function runProductionForSelected(ideaId) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ idea_id: ideaId })
         });
+        if (!res.ok) {
+            const errBody = await res.text();
+            throw new Error(`(${res.status}): ${errBody || res.statusText}`);
+        }
         const data = await res.json();
         if (data.success) {
             showToast(`تم إنتاج جميع أصول الفكرة بنجاح!`, 'success');

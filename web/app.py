@@ -53,11 +53,33 @@ except OSError:
 
 STORAGE_DIR = BASE_DIR / "storage"
 
-# Mount static and storage folders safely
+# Mount static folder safely
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-if STORAGE_DIR.exists():
-    app.mount("/storage", StaticFiles(directory=str(STORAGE_DIR)), name="storage")
+
+@app.get("/api/thumbnail/{idea_id}/{filename}")
+async def serve_thumbnail(idea_id: str, filename: str):
+    """Serves generated thumbnail file safely across local and serverless environments."""
+    target = STORAGE_ROOT / idea_id / "Thumbnails" / filename
+    if target.exists() and target.is_file():
+        return FileResponse(target)
+    fallback = BASE_DIR / "storage" / "AI Content Factory" / "2026" / idea_id / "Thumbnails" / filename
+    if fallback.exists() and fallback.is_file():
+        return FileResponse(fallback)
+    raise HTTPException(status_code=404, detail="Thumbnail not found")
+
+@app.get("/storage/{file_path:path}")
+async def serve_storage_file(file_path: str):
+    """Serves files from storage safely across local and Vercel environments."""
+    from core.config import IS_VERCEL
+    if IS_VERCEL:
+        tmp_target = Path("/tmp/ai-content-factory/storage") / file_path
+        if tmp_target.exists() and tmp_target.is_file():
+            return FileResponse(tmp_target)
+    local_target = (BASE_DIR / "storage") / file_path
+    if local_target.exists() and local_target.is_file():
+        return FileResponse(local_target)
+    raise HTTPException(status_code=404, detail="File not found")
 
 # Initialize engines
 idea_engine = IdeaEngine()
@@ -203,13 +225,11 @@ async def get_production_package(idea_id: str):
         yt_thumb = list(thumb_dir.glob("*youtube_1280x720.jpg"))
         vert_thumb = list(thumb_dir.glob("*vertical_1080x1920.jpg"))
         if yt_thumb:
-            rel = yt_thumb[0].relative_to(STORAGE_DIR).as_posix()
-            thumbnails["youtube_url"] = f"/storage/{rel}"
+            thumbnails["youtube_url"] = f"/api/thumbnail/{idea_id}/{yt_thumb[0].name}"
             thumbnails["youtube_path"] = str(yt_thumb[0])
             thumbnails["youtube_dim"] = "1280x720"
         if vert_thumb:
-            rel = vert_thumb[0].relative_to(STORAGE_DIR).as_posix()
-            thumbnails["vertical_url"] = f"/storage/{rel}"
+            thumbnails["vertical_url"] = f"/api/thumbnail/{idea_id}/{vert_thumb[0].name}"
             thumbnails["vertical_path"] = str(vert_thumb[0])
             thumbnails["vertical_dim"] = "1080x1920"
 
