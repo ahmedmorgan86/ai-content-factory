@@ -16,7 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from fastapi import FastAPI, HTTPException, Query, Body, Request
-from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -91,6 +91,11 @@ publishing_engine = PublishingEngine()
 analytics_engine = AnalyticsEngine()
 telegram_bot = TelegramControlPanel()
 
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    """Returns empty icon to prevent browser 404 noise."""
+    return Response(content=b"", media_type="image/x-icon", status_code=204)
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_index():
