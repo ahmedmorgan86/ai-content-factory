@@ -1,0 +1,46 @@
+[
+  {
+    "scene_number": 1,
+    "timecode": "00:00 - 00:04",
+    "duration_seconds": 4,
+    "voiceover": "تخيل لو تقدر تخلص شغل أسبوع كامل في ساعتين بس؟ ده بالظبط اللي بتعمله الأداة دي!",
+    "visual_description": "لقطة مقربة وسريعة لوجه المتحدث بتعبير دهشة وتحدٍ، مع تأثير زووم سريع (Speed Ramp).",
+    "b_roll": "شاشات كود ثلاثية الأبعاد وواجهات برمجية تدور حول المتحدث في غرفة مضاءة بنيون أزرق.",
+    "on_screen_text": "موظف 24 ساعة ببلاش؟! 🤖",
+    "sfx": "Fast cinematic whoosh + Deep sub-impact",
+    "ai_video_prompt": "Cinematic portrait shot of an energetic young tech specialist looking surprised into the camera, neon electric blue lighting, dynamic zoom, 8k photorealistic."
+  },
+  {
+    "scene_number": 2,
+    "timecode": "00:04 - 00:15",
+    "duration_seconds": 11,
+    "voiceover": "الموضوع مش خيال ولا كلام تسويق.. في 2026 ظهرت أدوات وكلاء ذكاء اصطناعي بتقدر تديهم مهمة واحدة معقدة وهما ينفذوها لوحدهم!",
+    "visual_description": "انتقال سريع للشاشة يستعرض واجهة وكيل ذكاء اصطناعي وهو ينجز 4 مهام في ثوانٍ متتالية.",
+    "b_roll": "تصوير سريع للشاشة (Screen Recording) لواجهة سير عمل مؤتمتة تسجل ردود وإيميلات تلقائياً.",
+    "on_screen_text": "ثورة AI Agents ⚡",
+    "sfx": "Rapid mouse clicking + Cyber interface glitches",
+    "ai_video_prompt": "Futuristic UI HUD interface showing automated AI agent executing multiple tasks simultaneously, floating nodes and glowing data packets, 4k 60fps."
+  },
+  {
+    "scene_number": 3,
+    "timecode": "00:15 - 00:35",
+    "duration_seconds": 20,
+    "voiceover": "يعني بدل ما تقعد 3 ساعات ترد على إيميلات العملاء وتنسق المواعيد، أنت بتعمل Agent صغير وهو بيتولى اللعبة كلها بدقة متناهية. السر كله إنك تبدأ بحاجة بسيطة وتفهم إزاي توجهه بالـ Prompts الصح.",
+    "visual_description": "المتحدث يعود للكادر حاملاً هاتفه الذكي مشيراً إلى سلاسة وسرعة وصول الإشعارات التلقائية.",
+    "b_roll": "رسم بياني حركي (Motion Graphics) يوضح توفير 15 ساعة عمل أسبوعياً.",
+    "on_screen_text": "وفّر 15 ساعة أسبوعياً! ⏳",
+    "sfx": "Clock ticking speeding up then cash register bell 'Ching!'",
+    "ai_video_prompt": "Minimalist sleek 3D motion graphic animation of a digital clock transforming into glowing energy sparks, dark slate background."
+  },
+  {
+    "scene_number": 4,
+    "timecode": "00:35 - 00:50",
+    "duration_seconds": 15,
+    "voiceover": "لو عايزني أعملك شرح تطبيقي خطوة بخطوة إزاي تبني أول Agent ليك، اكتبلي كلمة 'وكيل' في التعليقات واعمل فولو عشان الفيديو الجاي هيفوتك كتير!",
+    "visual_description": "سهم حركي يوجه المشاهد إلى زر المتابعة وصندوق التعليقات مع وميض أنيق للوجو القناة.",
+    "b_roll": "أيقونة تعليق وزر فولو ثلاثي الأبعاد مضيء باللون السماوي يرتد بسلاسة.",
+    "on_screen_text": "اكتب 'وكيل' في التعليقات 👇",
+    "sfx": "Pop sound effect + Smooth whoosh exit",
+    "ai_video_prompt": "Glowing 3D notification icon floating smoothly with modern tech particle ambiance, soft studio lighting."
+  }
+]

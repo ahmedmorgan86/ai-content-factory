@@ -46,12 +46,18 @@ app.add_middleware(
 
 # Directories
 STATIC_DIR = Path(__file__).resolve().parent / "static"
-STATIC_DIR.mkdir(parents=True, exist_ok=True)
+try:
+    STATIC_DIR.mkdir(parents=True, exist_ok=True)
+except OSError:
+    pass
+
 STORAGE_DIR = BASE_DIR / "storage"
 
-# Mount static and storage folders
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-app.mount("/storage", StaticFiles(directory=str(STORAGE_DIR)), name="storage")
+# Mount static and storage folders safely
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+if STORAGE_DIR.exists():
+    app.mount("/storage", StaticFiles(directory=str(STORAGE_DIR)), name="storage")
 
 # Initialize engines
 idea_engine = IdeaEngine()
@@ -68,6 +74,8 @@ telegram_bot = TelegramControlPanel()
 async def serve_index():
     """Serves the main dashboard application."""
     index_file = STATIC_DIR / "index.html"
+    if not index_file.exists():
+        index_file = BASE_DIR / "web" / "static" / "index.html"
     if not index_file.exists():
         return HTMLResponse("<h1>AI Content Factory Dashboard loading...</h1>")
     with open(index_file, "r", encoding="utf-8") as f:

@@ -6,15 +6,50 @@ Adheres to security rule: NEVER hardcode API keys.
 
 import os
 import csv
+import shutil
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DB_DIR = BASE_DIR / "database"
-STORAGE_ROOT = BASE_DIR / "storage" / "AI Content Factory" / "2026"
-PROMPTS_DIR = BASE_DIR / "prompts"
+IS_VERCEL = bool(os.getenv("VERCEL"))
 
-# Ensure runtime directories exist
-STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
+if IS_VERCEL:
+    TMP_ROOT = Path("/tmp/ai-content-factory")
+    DB_DIR = TMP_ROOT / "database"
+    STORAGE_ROOT = TMP_ROOT / "storage" / "AI Content Factory" / "2026"
+    PROMPTS_DIR = BASE_DIR / "prompts"
+
+    # Seed /tmp folders from repo if not yet present
+    try:
+        if not DB_DIR.exists():
+            DB_DIR.mkdir(parents=True, exist_ok=True)
+            repo_db = BASE_DIR / "database"
+            if repo_db.exists():
+                for item in repo_db.glob("*"):
+                    if item.is_file():
+                        shutil.copy2(item, DB_DIR / item.name)
+
+        if not STORAGE_ROOT.exists():
+            STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
+            repo_storage = BASE_DIR / "storage" / "AI Content Factory" / "2026"
+            if repo_storage.exists():
+                for sub in repo_storage.glob("*"):
+                    dest = STORAGE_ROOT / sub.name
+                    if sub.is_dir() and not dest.exists():
+                        shutil.copytree(sub, dest)
+                    elif sub.is_file() and not dest.exists():
+                        shutil.copy2(sub, dest)
+    except Exception as e:
+        print(f"[!] Warning initializing /tmp for Vercel: {e}")
+else:
+    DB_DIR = BASE_DIR / "database"
+    STORAGE_ROOT = BASE_DIR / "storage" / "AI Content Factory" / "2026"
+    PROMPTS_DIR = BASE_DIR / "prompts"
+
+# Ensure runtime directories exist safely
+try:
+    STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
+except OSError:
+    pass
 
 class Config:
     # Security Credentials (Loaded from Environment)
