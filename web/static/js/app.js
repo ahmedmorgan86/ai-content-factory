@@ -279,6 +279,9 @@ function renderStudioPackage(data) {
     const seo = data.seo || {};
     const thumbs = data.thumbnails || {};
     const scenes = data.scenes || [];
+    const audio = data.audio || null;
+    const video = data.video || null;
+    const frames = data.scene_frames || [];
 
     container.innerHTML = `
         <div class="space-y-6">
@@ -290,21 +293,166 @@ function renderStudioPackage(data) {
                         <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                             <i class="fa-solid fa-check-double ml-1"></i>أصول الإنتاج جاهزة
                         </span>
+                        ${video ? `
+                            <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                <i class="fa-solid fa-clapperboard ml-1"></i>الفيديو جاهز للنشر 🚀
+                            </span>
+                        ` : ''}
                         <span class="text-xs text-slate-400 font-mono">${data.storage_path}</span>
                     </div>
                     <h2 class="text-xl font-bold text-white leading-tight">${meta['Video Title'] || seo['recommended_best_title']}</h2>
                 </div>
-                <div class="flex items-center gap-3">
+                <div class="flex flex-wrap items-center gap-3">
                     <button onclick="approvePublishing('${data.idea_id}')" class="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-lg transition flex items-center space-x-2 space-x-reverse">
                         <i class="fa-solid fa-circle-check"></i>
                         <span>اعتماد وجدولة النشر</span>
                     </button>
                     <button onclick="runProductionForSelected('${data.idea_id}')" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs border border-slate-700 transition flex items-center space-x-2 space-x-reverse">
                         <i class="fa-solid fa-rotate"></i>
-                        <span>إعادة توليد</span>
+                        <span>توليد الحزمة الشاملة</span>
                     </button>
                 </div>
             </div>
+
+            <!-- READY-FOR-PUBLISHING VIDEO & VOXARABIC AUDIO HERO SECTION -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Ready-to-Publish Video Player -->
+                <div class="glass-panel p-6 rounded-2xl border border-indigo-500/40 relative overflow-hidden bg-gradient-to-b from-slate-900/90 to-indigo-950/20 space-y-4">
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                        <div class="flex items-center space-x-2 space-x-reverse text-indigo-400 font-bold">
+                            <i class="fa-solid fa-circle-play text-xl"></i>
+                            <span class="text-base">الفيديو النهائي الجاهز للنشر (Rendered Video)</span>
+                        </div>
+                        ${video ? `
+                            <span class="text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 px-2.5 py-1 rounded-full border border-indigo-500/30">
+                                ${video.is_vertical ? '9:16 Shorts / Reels' : '16:9 YouTube Long'}
+                            </span>
+                        ` : ''}
+                    </div>
+
+                    ${video ? `
+                        <div class="flex flex-col items-center space-y-3">
+                            <div class="rounded-xl overflow-hidden border border-slate-700 shadow-2xl bg-black max-h-[380px] w-full flex items-center justify-center">
+                                <video controls class="max-h-[380px] w-auto rounded-lg" src="${video.url}?t=${Date.now()}" preload="metadata">
+                                    متصفحك لا يدعم تشغيل الفيديو مباشرة.
+                                </video>
+                            </div>
+                            <div class="flex items-center justify-between w-full text-xs text-slate-400 px-1 pt-1">
+                                <span><i class="fa-solid fa-file-video text-indigo-400 ml-1"></i>${video.filename} (${video.size_mb} MB)</span>
+                                <a href="${video.url}" download="${video.filename}" class="px-3.5 py-1.5 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 font-bold transition flex items-center space-x-1 space-x-reverse">
+                                    <i class="fa-solid fa-download"></i>
+                                    <span>تحميل الفيديو MP4</span>
+                                </a>
+                            </div>
+                        </div>
+                    ` : `
+                        <div class="p-8 text-center bg-slate-900/60 rounded-xl border border-dashed border-slate-800 space-y-3">
+                            <div class="w-12 h-12 rounded-full bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto text-xl">
+                                <i class="fa-solid fa-clapperboard"></i>
+                            </div>
+                            <div class="text-slate-300 text-xs font-semibold">لم يتم تجميع ورندر الفيديو النهائي بعد.</div>
+                            <p class="text-slate-500 text-[11px]">يتم دمج المشاهد البصرية مع التعليق الصوتي والترجمة الحركية تلقائياً.</p>
+                        </div>
+                    `}
+
+                    <!-- Video Action Controls -->
+                    <div class="pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
+                        <div class="flex items-center space-x-2 space-x-reverse text-xs">
+                            <span class="text-slate-400">الصيغة:</span>
+                            <select id="video-render-format" class="px-2.5 py-1 rounded bg-slate-900 border border-slate-700 text-slate-200 text-xs focus:outline-none">
+                                <option value="vertical">شورتس وريلز (9:16 عمودي)</option>
+                                <option value="horizontal">يوتيوب طويل (16:9 أفقي)</option>
+                            </select>
+                        </div>
+                        <button id="btn-render-video" onclick="triggerVideoRender('${data.idea_id}')" class="px-4 py-2 rounded-xl bg-gradient-to-l from-indigo-500 to-sky-500 hover:from-indigo-400 hover:to-sky-400 text-white font-bold text-xs shadow-md transition flex items-center space-x-2 space-x-reverse">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            <span>${video ? 'إعادة رندر الفيديو' : '🎬 رندر وتجميع الفيديو الآن'}</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- VoxArabicStudio Voiceover Engine -->
+                <div class="glass-panel p-6 rounded-2xl border border-sky-500/40 relative overflow-hidden bg-gradient-to-b from-slate-900/90 to-sky-950/20 space-y-4">
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                        <div class="flex items-center space-x-2 space-x-reverse text-sky-400 font-bold">
+                            <i class="fa-solid fa-microphone-lines text-xl"></i>
+                            <span class="text-base">التعليق الصوتي (VoxArabicStudio Engine)</span>
+                        </div>
+                        <span class="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2.5 py-1 rounded-full border border-sky-500/30">
+                            لهجة مصرية أصيلة 🇪🇬
+                        </span>
+                    </div>
+
+                    ${audio ? `
+                        <div class="space-y-4">
+                            <div class="bg-slate-900/90 p-4 rounded-xl border border-slate-800 space-y-3">
+                                <div class="flex items-center justify-between text-xs">
+                                    <span class="font-bold text-slate-200"><i class="fa-solid fa-circle-check text-emerald-400 ml-1"></i>الصوت المختار: ${audio.voice_name}</span>
+                                    <span class="text-slate-400 font-mono text-[11px]">${audio.size_kb} KB</span>
+                                </div>
+                                <audio controls class="w-full h-10 rounded" src="${audio.url}?t=${Date.now()}" preload="metadata">
+                                    متصفحك لا يدعم مشغل الصوت.
+                                </audio>
+                            </div>
+                        </div>
+                    ` : `
+                        <div class="p-8 text-center bg-slate-900/60 rounded-xl border border-dashed border-slate-800 space-y-3">
+                            <div class="w-12 h-12 rounded-full bg-sky-500/10 text-sky-400 flex items-center justify-center mx-auto text-xl">
+                                <i class="fa-solid fa-microphone-slash"></i>
+                            </div>
+                            <div class="text-slate-300 text-xs font-semibold">لم يتم توليد التعليق الصوتي بعد.</div>
+                            <p class="text-slate-500 text-[11px]">اختر المعلق الصوتي واضغط توليد لبدء التسجيل الصوتي الاستوديو فوراً.</p>
+                        </div>
+                    `}
+
+                    <!-- Voice Controls -->
+                    <div class="pt-3 border-t border-slate-800/80 space-y-3">
+                        <div class="flex flex-wrap items-center justify-between gap-3 text-xs">
+                            <div class="flex items-center space-x-2 space-x-reverse">
+                                <span class="text-slate-400">المعلق الصوتي:</span>
+                                <select id="voice-selector" class="px-2.5 py-1 rounded bg-slate-900 border border-slate-700 text-slate-200 text-xs focus:outline-none">
+                                    <option value="shakir">شاكر (استوديو احترافي - صوت إذاعي مصري رجالي)</option>
+                                    <option value="salma">سلمى (استوديو إذاعي - صوت مصري طبيعي أنثوي)</option>
+                                </select>
+                            </div>
+                            <button id="btn-generate-voice" onclick="triggerVoiceover('${data.idea_id}')" class="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-md transition flex items-center space-x-2 space-x-reverse">
+                                <i class="fa-solid fa-microphone"></i>
+                                <span>${audio ? 'إعادة تسجيل الصوت' : '🎙️ توليد التعليق الصوتي'}</span>
+                            </button>
+                        </div>
+                        <div class="text-[11px] text-slate-400 flex items-center space-x-1.5 space-x-reverse">
+                            <i class="fa-brands fa-github text-slate-500"></i>
+                            <span>مبني ومدمج عبر: <a href="https://github.com/ahmedmorgan86/VoxArabicStudio" target="_blank" class="text-sky-400 hover:underline">ahmedmorgan86/VoxArabicStudio</a></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SCENE VISUALS STORYBOARD -->
+            ${frames.length > 0 ? `
+                <div class="glass-panel p-6 rounded-2xl border border-slate-700/60 space-y-4">
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                        <div class="flex items-center space-x-2 space-x-reverse text-emerald-400 font-bold">
+                            <i class="fa-solid fa-photo-film text-lg"></i>
+                            <span>لوحة مشاهد الفيديو (Scene Visuals & Storyboard)</span>
+                        </div>
+                        <span class="text-xs text-slate-400">توليد فني 8K بواسطة Pollinations Flux AI</span>
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        ${frames.map((fr, idx) => `
+                            <div class="relative group rounded-xl overflow-hidden border border-slate-700 shadow bg-slate-900">
+                                <img src="${fr.url}?t=${Date.now()}" alt="${fr.filename}" class="w-full h-44 object-cover transition duration-300 group-hover:scale-105">
+                                <div class="absolute bottom-0 inset-x-0 bg-slate-950/80 p-2 text-[11px] text-slate-300 text-center font-bold">
+                                    مشهد #${idx + 1}
+                                </div>
+                                <a href="${fr.url}" target="_blank" class="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition">
+                                    <i class="fa-solid fa-magnifying-glass-plus ml-1"></i> تكبير
+                                </a>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            ` : ''}
 
             <!-- Main Production Columns -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -314,7 +462,7 @@ function renderStudioPackage(data) {
                     <div class="glass-panel p-6 rounded-2xl border border-slate-700/60">
                         <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
                             <div class="flex items-center space-x-2 space-x-reverse text-sky-400 font-bold">
-                                <i class="fa-solid fa-microphone-lines text-lg"></i>
+                                <i class="fa-solid fa-align-right text-lg"></i>
                                 <span>السكريبت الكامل والإلقاء الصوتي (باللهجة المصرية)</span>
                             </div>
                             <button onclick="copyText('script-text-content')" class="text-xs text-slate-400 hover:text-sky-300 flex items-center space-x-1 space-x-reverse">
@@ -419,7 +567,7 @@ ${data.script_markdown}
                         <div class="flex items-center justify-between">
                             <span class="text-xs font-bold text-slate-200"><i class="fa-brands fa-youtube text-rose-500 ml-1"></i>صورة يوتيوب (16:9)</span>
                             <span class="text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30">
-                                1280×720 مُحققة
+                                1280×720 (Real AI Art)
                             </span>
                         </div>
                         ${thumbs.youtube_url ? `
@@ -437,7 +585,7 @@ ${data.script_markdown}
                         <div class="flex items-center justify-between">
                             <span class="text-xs font-bold text-slate-200"><i class="fa-brands fa-tiktok text-cyan-400 ml-1"></i>غلاف ريلز وشورتس (9:16)</span>
                             <span class="text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30">
-                                1080×1920 مُحققة
+                                1080×1920 (Real AI Art)
                             </span>
                         </div>
                         ${thumbs.vertical_url ? `
@@ -452,15 +600,16 @@ ${data.script_markdown}
 
                     <!-- Storage Asset Tree -->
                     <div class="glass-panel p-5 rounded-2xl border border-slate-700/60 space-y-3 text-xs">
-                        <span class="font-bold text-slate-300 block"><i class="fa-solid fa-folder-tree text-sky-400 ml-1"></i>هيكل المجلدات المنظم (Google Drive / Storage):</span>
+                        <span class="font-bold text-slate-300 block"><i class="fa-solid fa-folder-tree text-sky-400 ml-1"></i>هيكل المجلدات المنظم:</span>
                         <div class="space-y-1 font-mono text-[11px] text-slate-400 bg-slate-900/80 p-3 rounded-xl border border-slate-800">
                             <div>📁 /AI Content Factory/2026/${data.idea_id}/</div>
                             <div class="mr-3">├── 📂 Research/</div>
                             <div class="mr-3">├── 📂 Scripts/ (Markdown + JSON)</div>
                             <div class="mr-3">├── 📂 SEO/ (Titles, Tags, Descriptions)</div>
                             <div class="mr-3">├── 📂 Thumbnails/ (1280x720 + 1080x1920)</div>
-                            <div class="mr-3">├── 📂 Video_Assets/</div>
-                            <div class="mr-3">└── 📂 Publishing/</div>
+                            <div class="mr-3">├── 📂 Audio/ (VoxArabic Egyptian Voiceover)</div>
+                            <div class="mr-3">├── 📂 Video_Assets/ (Final Rendered MP4 + Frames)</div>
+                            <div class="mr-3">└── 📂 Publishing/ (Manifests)</div>
                         </div>
                     </div>
                 </div>
@@ -514,6 +663,72 @@ async function approvePublishing(ideaId) {
         }
     } catch (err) {
         showToast(`خطأ: ${err.message}`, 'error');
+    }
+}
+
+// Action: Trigger VoxArabic Voiceover
+async function triggerVoiceover(ideaId) {
+    const selector = document.getElementById('voice-selector');
+    const voiceKey = selector ? selector.value : 'shakir';
+    const btn = document.getElementById('btn-generate-voice');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>جارٍ التسجيل الصوتي...</span>';
+    }
+    showToast(`جارٍ توليد التعليق الصوتي باللهجة المصرية عبر VoxArabicStudio...`, 'info');
+    try {
+        const res = await fetch('/api/voice/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idea_id: ideaId, voice_key: voiceKey })
+        });
+        if (!res.ok) {
+            const err = await res.text();
+            throw new Error(err || res.statusText);
+        }
+        const data = await res.json();
+        showToast('تم إنتاج التعليق الصوتي بنجاح!', 'success');
+        await openStudio(ideaId);
+    } catch (err) {
+        showToast(`فشل توليد الصوت: ${err.message}`, 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+        }
+    }
+}
+
+// Action: Trigger Video Render
+async function triggerVideoRender(ideaId) {
+    const formatSelector = document.getElementById('video-render-format');
+    const isVertical = formatSelector ? formatSelector.value === 'vertical' : true;
+    const voiceSelector = document.getElementById('voice-selector');
+    const voiceKey = voiceSelector ? voiceSelector.value : 'shakir';
+    const btn = document.getElementById('btn-render-video');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>جارٍ تجميع ورندر الفيديو...</span>';
+    }
+    showToast(`جارٍ تجميع ورندر الفيديو الكامل (${isVertical ? 'Shorts 9:16' : '16:9'})... يرجى الانتظار ثوانٍ`, 'info');
+    try {
+        const res = await fetch('/api/video/render', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idea_id: ideaId, voice_key: voiceKey, is_vertical: isVertical })
+        });
+        if (!res.ok) {
+            const err = await res.text();
+            throw new Error(err || res.statusText);
+        }
+        const data = await res.json();
+        showToast('🎉 تم رندر وتجميع الفيديو النهائي بنجاح وجاهز للنشر!', 'success');
+        await openStudio(ideaId);
+    } catch (err) {
+        showToast(`فشل رندر الفيديو: ${err.message}`, 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+        }
     }
 }
 

@@ -29,6 +29,8 @@ from core.storage_engine import StorageEngine
 from core.publishing_engine import PublishingEngine
 from core.analytics_engine import AnalyticsEngine
 from core.telegram_bot import TelegramControlPanel
+from core.voice_engine import VoiceEngine
+from core.video_engine import VideoEngine
 
 app = FastAPI(
     title="AI Content Factory Command Center",
@@ -68,6 +70,39 @@ async def serve_thumbnail(idea_id: str, filename: str):
         return FileResponse(fallback)
     raise HTTPException(status_code=404, detail="Thumbnail not found")
 
+@app.get("/api/audio/{idea_id}/{filename}")
+async def serve_audio(idea_id: str, filename: str):
+    """Serves generated VoxArabic voiceover audio file."""
+    target = STORAGE_ROOT / idea_id / "Audio" / filename
+    if target.exists() and target.is_file():
+        return FileResponse(target, media_type="audio/mpeg")
+    fallback = BASE_DIR / "storage" / "AI Content Factory" / "2026" / idea_id / "Audio" / filename
+    if fallback.exists() and fallback.is_file():
+        return FileResponse(fallback, media_type="audio/mpeg")
+    raise HTTPException(status_code=404, detail="Audio file not found")
+
+@app.get("/api/video/{idea_id}/{filename}")
+async def serve_video(idea_id: str, filename: str):
+    """Serves rendered MP4 ready-to-publish video file."""
+    target = STORAGE_ROOT / idea_id / "Video_Assets" / filename
+    if target.exists() and target.is_file():
+        return FileResponse(target, media_type="video/mp4")
+    fallback = BASE_DIR / "storage" / "AI Content Factory" / "2026" / idea_id / "Video_Assets" / filename
+    if fallback.exists() and fallback.is_file():
+        return FileResponse(fallback, media_type="video/mp4")
+    raise HTTPException(status_code=404, detail="Video file not found")
+
+@app.get("/api/scene-frame/{idea_id}/{filename}")
+async def serve_scene_frame(idea_id: str, filename: str):
+    """Serves generated AI scene visual frame."""
+    target = STORAGE_ROOT / idea_id / "Video_Assets" / filename
+    if target.exists() and target.is_file():
+        return FileResponse(target, media_type="image/jpeg")
+    fallback = BASE_DIR / "storage" / "AI Content Factory" / "2026" / idea_id / "Video_Assets" / filename
+    if fallback.exists() and fallback.is_file():
+        return FileResponse(fallback, media_type="image/jpeg")
+    raise HTTPException(status_code=404, detail="Scene frame not found")
+
 @app.get("/storage/{file_path:path}")
 async def serve_storage_file(file_path: str):
     """Serves files from storage safely across local and Vercel environments."""
@@ -90,6 +125,8 @@ storage_engine = StorageEngine()
 publishing_engine = PublishingEngine()
 analytics_engine = AnalyticsEngine()
 telegram_bot = TelegramControlPanel()
+voice_engine = VoiceEngine()
+video_engine = VideoEngine()
 
 
 @app.get("/favicon.ico", include_in_schema=False)
@@ -238,6 +275,44 @@ async def get_production_package(idea_id: str):
             thumbnails["vertical_path"] = str(vert_thumb[0])
             thumbnails["vertical_dim"] = "1080x1920"
 
+    # Check Audio (VoxArabic voiceover)
+    audio_dir = video_dir / "Audio"
+    audio_data = None
+    if audio_dir.exists():
+        mp3s = list(audio_dir.glob("*.mp3"))
+        if mp3s:
+            latest_mp3 = mp3s[-1]
+            audio_data = {
+                "available": True,
+                "url": f"/api/audio/{idea_id}/{latest_mp3.name}",
+                "filename": latest_mp3.name,
+                "size_kb": round(latest_mp3.stat().st_size / 1024, 1),
+                "voice_name": "شاكر (مصري استوديو)" if "shakir" in latest_mp3.name else "سلمى (مصرية إذاعية)"
+            }
+
+    # Check Rendered Videos & Scene Frames
+    video_assets_dir = video_dir / "Video_Assets"
+    video_data = None
+    scene_frames = []
+    if video_assets_dir.exists():
+        mp4s = list(video_assets_dir.glob("final_video_*.mp4"))
+        if mp4s:
+            latest_mp4 = mp4s[-1]
+            video_data = {
+                "available": True,
+                "url": f"/api/video/{idea_id}/{latest_mp4.name}",
+                "filename": latest_mp4.name,
+                "size_mb": round(latest_mp4.stat().st_size / (1024 * 1024), 2),
+                "is_vertical": "vertical" in latest_mp4.name.lower()
+            }
+        # Gather scene frames
+        frames = sorted(list(video_assets_dir.glob("frame_scene_*.jpg")))
+        for f in frames:
+            scene_frames.append({
+                "url": f"/api/scene-frame/{idea_id}/{f.name}",
+                "filename": f.name
+            })
+
     # Get Publishing status from CSV
     publishing_records = []
     pub_csv = DB_DIR / "Publishing.csv"
@@ -260,13 +335,16 @@ async def get_production_package(idea_id: str):
         "scenes": scenes_data,
         "seo": seo_data,
         "thumbnails": thumbnails,
+        "audio": audio_data,
+        "video": video_data,
+        "scene_frames": scene_frames,
         "publishing": publishing_records,
         "storage_path": str(video_dir)
     }
 
 
 @app.post("/api/production/generate")
-async def generate_production_package(payload: Dict[str, Any] = Body(...)):
+def generate_production_package(payload: Dict[str, Any] = Body(...)):
     """Runs complete production generation (Scripts, SEO, Thumbnails, Storage, Publishing manifest)."""
     idea_id = payload.get("idea_id")
     if not idea_id:
@@ -317,19 +395,95 @@ async def generate_production_package(payload: Dict[str, Any] = Body(...)):
             idea_id, idea_dict["video_title"], seo_pkg, thumb_res, approved=False
         )
 
-        # 6. Update status in Ideas.csv
+        # 6. Generate Egyptian Voiceover via VoxArabic Engine
+        voice_res = None
+        try:
+            voice_res = voice_engine.generate_voiceover(
+                idea_id=idea_id,
+                text=script_to_use["full_voiceover"],
+                voice_key="shakir"
+            )
+        except Exception as ve:
+            print(f"Voice generation warning: {ve}")
+
+        # 7. Render Ready-to-Publish Video (Shorts 9:16 or Long 16:9)
+        video_res = None
+        try:
+            video_res = video_engine.render_video_for_idea(
+                idea_id=idea_id,
+                script_data=script_to_use,
+                voice_key="shakir",
+                is_vertical=("Short" in idea_dict["video_type"])
+            )
+        except Exception as vre:
+            print(f"Video rendering warning: {vre}")
+
+        # 8. Update status in Ideas.csv
         idea_engine.update_idea_status(idea_id, "Ready for Production")
 
         return {
             "success": True,
             "idea_id": idea_id,
-            "message": "Full production package generated and verified successfully.",
+            "message": "Full production package generated: Script, SEO, Real AI Thumbnails, Egyptian Voiceover, and Ready-to-Publish Video.",
             "script": script_to_use,
             "seo": seo_pkg,
-            "thumbnails": thumb_res
+            "thumbnails": thumb_res,
+            "audio": voice_res,
+            "video": video_res
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
+
+
+@app.post("/api/voice/generate")
+def generate_voiceover_endpoint(payload: Dict[str, Any] = Body(...)):
+    """Generates authentic Egyptian Arabic voiceover using VoxArabicStudio engine."""
+    idea_id = payload.get("idea_id")
+    voice_key = payload.get("voice_key", "shakir")
+    custom_text = payload.get("text")
+    if not idea_id:
+        raise HTTPException(status_code=400, detail="idea_id is required")
+
+    text_to_speak = custom_text
+    if not text_to_speak:
+        # Load script from storage
+        scripts_dir = STORAGE_ROOT / idea_id / "Scripts"
+        scene_files = list(scripts_dir.glob("scenes_*.json")) if scripts_dir.exists() else []
+        if scene_files:
+            with open(scene_files[0], "r", encoding="utf-8") as f:
+                scenes = json.load(f)
+            text_to_speak = " ".join([s.get("voiceover", "") for s in scenes if s.get("voiceover")])
+
+    if not text_to_speak:
+        raise HTTPException(status_code=400, detail="No voiceover text found or provided.")
+
+    try:
+        res = voice_engine.generate_voiceover(idea_id, text_to_speak, voice_key=voice_key)
+        res["url"] = f"/api/audio/{idea_id}/{res['filename']}"
+        return {"success": True, "audio": res}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Voice synthesis failed: {str(e)}")
+
+
+@app.post("/api/video/render")
+def render_video_endpoint(payload: Dict[str, Any] = Body(...)):
+    """Renders scenes, visual prompts, and VoxArabic voiceover into ready-to-publish MP4."""
+    idea_id = payload.get("idea_id")
+    voice_key = payload.get("voice_key", "shakir")
+    is_vertical = payload.get("is_vertical", True)
+    if not idea_id:
+        raise HTTPException(status_code=400, detail="idea_id is required")
+
+    try:
+        res = video_engine.render_video_for_idea(
+            idea_id=idea_id,
+            voice_key=voice_key,
+            is_vertical=is_vertical
+        )
+        res["url"] = f"/api/video/{idea_id}/{res['filename']}"
+        return {"success": True, "video": res}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Video rendering failed: {str(e)}")
 
 
 @app.post("/api/publishing/approve")

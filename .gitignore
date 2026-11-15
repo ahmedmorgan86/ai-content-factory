@@ -23,3 +23,8 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Heavy generated media
+storage/**/*.mp4
+storage/**/*.mp3
+storage/AI Content Factory/2026/IDEA-*

@@ -1,15 +1,19 @@
 """
-AI Content Factory - Scenario 5: Thumbnail Generation & Multi-Platform Resizing Engine
-Generates cinematic visual prompts, invokes image generation (or renders high-contrast synth visual),
-overlays Arabic typography banner, and creates verified YouTube (1280x720) and Vertical (1080x1920) assets.
+AI Content Factory - Scenario 5: Real AI Thumbnail & Multi-Platform Resizing Engine
+Generates photorealistic AI artwork via Flux / DALL-E, overlays Arabic typography,
+and creates verified YouTube (1280x720) and Vertical (1080x1920) assets.
 """
 
 import os
+import io
 import json
 import csv
+import random
 import datetime
+import urllib.parse
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
+import requests
 from core.config import Config, DB_DIR
 
 class ThumbnailEngine:
@@ -17,9 +21,10 @@ class ThumbnailEngine:
         self.thumbnails_csv = DB_DIR / "Thumbnails.csv"
 
     def formulate_prompts(self, idea_title, core_concept="AI Agents automation in 2026"):
-        """Formulates the exact English prompt for DALL-E 3 and Arabic typography specs."""
+        """Formulates the exact English prompt for AI Art generation and Arabic typography specs."""
+        clean_concept = idea_title if idea_title else core_concept
         dalle_prompt = (
-            f"Hyper-realistic cinematic 8k wide shot representing: '{core_concept}'. "
+            f"Hyper-realistic cinematic 8k wide shot representing: '{clean_concept}'. "
             f"A glowing futuristic digital assistant hologram with intelligent neural nodes, "
             f"cyberpunk high-contrast ambiance, deep navy slate (#0F172A) background with vivid "
             f"electric cyan (#38BDF8) and ultraviolet indigo rim lighting. "
@@ -27,17 +32,47 @@ class ThumbnailEngine:
             f"no text, no letters, no logos, no watermarks, master composition."
         )
         arabic_text = "موظف ذكي 24 ساعة!"
+        if "فلوس" in clean_concept or "ربح" in clean_concept or "دخل" in clean_concept:
+            arabic_text = "دخل يومي بالذكاء الاصطناعي 💰"
+        elif "أداة" in clean_concept or "برنامج" in clean_concept:
+            arabic_text = "أقوى أدوات 2026 الخارقة ⚡"
+        elif "سر" in clean_concept or "خدعة" in clean_concept:
+            arabic_text = "السر اللي مخبينه عليك! 🤫"
+            
         return dalle_prompt, arabic_text
 
+    def fetch_real_ai_artwork(self, prompt, width, height, seed=None):
+        """
+        Fetches photorealistic 8K AI artwork using Pollinations Flux engine.
+        Falls back seamlessly to synthetic dark slate canvas if offline or timeout.
+        """
+        if seed is None:
+            seed = random.randint(1000, 999999)
+            
+        try:
+            encoded = urllib.parse.quote(prompt[:300])
+            url = f"https://image.pollinations.ai/prompt/{encoded}?width={width}&height={height}&model=flux&nologo=true&seed={seed}"
+            headers = {"User-Agent": "AIContentFactory/2.0"}
+            resp = requests.get(url, headers=headers, timeout=12)
+            if resp.status_code == 200 and len(resp.content) > 5000:
+                img = Image.open(io.BytesIO(resp.content)).convert("RGB")
+                if img.size != (width, height):
+                    img = img.resize((width, height), Image.Resampling.LANCZOS)
+                return img, "AI Flux Generation"
+        except Exception as e:
+            # Fallback gracefully
+            pass
+
+        return self.create_cinematic_base_canvas(width, height, is_vertical=(height > width)), "Synthetic Fallback"
+
     def create_cinematic_base_canvas(self, width, height, is_vertical=False):
-        """Creates a high-contrast cinematic visual canvas with brand colors & glow effects."""
+        """Creates a high-contrast cinematic visual canvas with brand colors & glow effects as fallback."""
         base = Image.new("RGB", (width, height), color=(15, 23, 42))  # #0F172A Dark Slate
         draw = ImageDraw.Draw(base)
 
         # Gradient simulation & atmospheric glow
         for y in range(height):
             ratio = y / height
-            # Blend from slate to deep dark blue
             r = int(15 * (1 - ratio) + 8 * ratio)
             g = int(23 * (1 - ratio) + 14 * ratio)
             b = int(42 * (1 - ratio) + 30 * ratio)
@@ -80,7 +115,7 @@ class ThumbnailEngine:
         return base
 
     def add_arabic_and_branding_overlays(self, image, arabic_headline, is_vertical=False):
-        """Adds Arabic text banner and channel branding overlay."""
+        """Adds high-contrast Arabic text banner, gradient scrim, and channel branding overlay."""
         img = image.copy()
         draw = ImageDraw.Draw(img)
         w, h = img.size
@@ -110,26 +145,38 @@ class ThumbnailEngine:
         # Banner Box
         if not is_vertical:
             # YouTube 16:9 (1280x720)
-            box_x0, box_y0 = int(w * 0.05), int(h * 0.28)
-            box_x1, box_y1 = int(w * 0.48), int(h * 0.65)
-            # Dark backing for maximum mobile contrast
-            draw.rectangle([box_x0, box_y0, box_x1, box_y1], fill=(15, 23, 42))
-            draw.rectangle([box_x0, box_y0, box_x1, box_y1], outline=(56, 189, 248), width=4)
+            box_x0, box_y0 = int(w * 0.04), int(h * 0.25)
+            box_x1, box_y1 = int(w * 0.52), int(h * 0.70)
+            
+            # Semi-dark backing with vivid cyan border for extreme mobile readability
+            overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+            overlay_draw = ImageDraw.Draw(overlay)
+            overlay_draw.rounded_rectangle([box_x0, box_y0, box_x1, box_y1], radius=16, fill=(15, 23, 42, 230), outline=(56, 189, 248, 255), width=4)
+            img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
+            draw = ImageDraw.Draw(img)
+
             # Brand tag
-            draw.rectangle([box_x0 + 15, box_y0 - 20, box_x0 + 220, box_y0 + 15], fill=(56, 189, 248))
-            draw.text((box_x0 + 25, box_y0 - 18), "AI CONTENT FACTORY", fill=(15, 23, 42), font=tag_font)
+            draw.rounded_rectangle([box_x0 + 15, box_y0 - 18, box_x0 + 230, box_y0 + 18], radius=6, fill=(56, 189, 248))
+            draw.text((box_x0 + 25, box_y0 - 15), "AI CONTENT FACTORY", fill=(15, 23, 42), font=tag_font)
+
             # Arabic headline text
             draw.text((box_x0 + 25, box_y0 + 40), arabic_headline, fill=(255, 255, 255), font=headline_font)
-            draw.text((box_x0 + 25, box_y0 + 120), "دليل 2026 الحصري 🔥", fill=(56, 189, 248), font=headline_font)
+            draw.text((box_x0 + 25, box_y0 + 125), "دليل 2026 الحصري 🔥", fill=(56, 189, 248), font=headline_font)
         else:
             # Vertical 9:16 (1080x1920)
-            box_x0, box_y0 = int(w * 0.08), int(h * 0.68)
-            box_x1, box_y1 = int(w * 0.92), int(h * 0.88)
-            draw.rectangle([box_x0, box_y0, box_x1, box_y1], fill=(15, 23, 42))
-            draw.rectangle([box_x0, box_y0, box_x1, box_y1], outline=(56, 189, 248), width=5)
+            box_x0, box_y0 = int(w * 0.06), int(h * 0.65)
+            box_x1, box_y1 = int(w * 0.94), int(h * 0.88)
+            
+            overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+            overlay_draw = ImageDraw.Draw(overlay)
+            overlay_draw.rounded_rectangle([box_x0, box_y0, box_x1, box_y1], radius=20, fill=(15, 23, 42, 235), outline=(56, 189, 248, 255), width=5)
+            img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
+            draw = ImageDraw.Draw(img)
+
             # Brand tag
-            draw.rectangle([box_x0 + 25, box_y0 - 25, box_x0 + 340, box_y0 + 22], fill=(56, 189, 248))
-            draw.text((box_x0 + 35, box_y0 - 22), "SHORTS & REELS EXCLUSIVE", fill=(15, 23, 42), font=tag_font)
+            draw.rounded_rectangle([box_x0 + 25, box_y0 - 24, box_x0 + 360, box_y0 + 24], radius=8, fill=(56, 189, 248))
+            draw.text((box_x0 + 35, box_y0 - 20), "SHORTS & REELS EXCLUSIVE", fill=(15, 23, 42), font=tag_font)
+
             # Headline
             draw.text((box_x0 + 35, box_y0 + 50), arabic_headline, fill=(255, 255, 255), font=headline_font)
             draw.text((box_x0 + 35, box_y0 + 160), "أتمتة ذكية بدون كود ⚡", fill=(56, 189, 248), font=headline_font)
@@ -140,7 +187,7 @@ class ThumbnailEngine:
         """
         Executes full thumbnail pipeline:
         1. Builds prompts.
-        2. Generates base.
+        2. Generates real AI artwork via Flux / DALL-E (or fallback).
         3. Creates and verifies 1280x720 (YouTube 16:9).
         4. Creates and verifies 1080x1920 (Shorts/TikTok/Reels 9:16).
         5. Saves to disk and verifies exact dimensions.
@@ -152,14 +199,14 @@ class ThumbnailEngine:
 
         dalle_prompt, arabic_headline = self.formulate_prompts(title)
 
-        # 1. YouTube Long (1280 x 720)
-        yt_base = self.create_cinematic_base_canvas(1280, 720, is_vertical=False)
+        # 1. YouTube Long (1280 x 720) Real AI Base
+        yt_base, gen_source = self.fetch_real_ai_artwork(dalle_prompt, 1280, 720)
         yt_final = self.add_arabic_and_branding_overlays(yt_base, arabic_headline, is_vertical=False)
         yt_path = output_dir / f"thumbnail_{idea_id}_youtube_1280x720.jpg"
         yt_final.save(yt_path, format="JPEG", quality=95)
 
-        # 2. Vertical Shorts / Reels / TikTok (1080 x 1920)
-        v_base = self.create_cinematic_base_canvas(1080, 1920, is_vertical=True)
+        # 2. Vertical Shorts / Reels / TikTok (1080 x 1920) Real AI Base
+        v_base, _ = self.fetch_real_ai_artwork(dalle_prompt, 1080, 1920)
         v_final = self.add_arabic_and_branding_overlays(v_base, arabic_headline, is_vertical=True)
         v_path = output_dir / f"cover_{idea_id}_vertical_1080x1920.jpg"
         v_final.save(v_path, format="JPEG", quality=95)
@@ -176,7 +223,7 @@ class ThumbnailEngine:
             "thumbnail_id": thumbnail_id,
             "idea_id": idea_id,
             "prompt": dalle_prompt,
-            "raw_url": "Generated & Verified Local Render",
+            "raw_url": f"Pollinations Flux AI ({gen_source})",
             "yt_link": str(yt_path),
             "v_link": str(v_path),
             "personal_photo": "No",
@@ -193,6 +240,7 @@ class ThumbnailEngine:
             "vertical_path": str(v_path),
             "youtube_dimensions": (1280, 720),
             "vertical_dimensions": (1080, 1920),
+            "generation_source": gen_source,
             "status": "Success & Verified"
         }
 
