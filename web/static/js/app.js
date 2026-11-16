@@ -1031,29 +1031,98 @@ function copyDigestText() {
 // API: Settings
 async function loadSettings() {
     try {
-        const res = await apiFetch('/api/settings'); if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
+        const [settingsRes, integRes] = await Promise.all([
+            apiFetch('/api/settings'),
+            apiFetch('/api/integrations/status').catch(() => null)
+        ]);
+        if (!settingsRes.ok) throw new Error(`HTTP ${settingsRes.status}`);
+        const data = await settingsRes.json();
         state.settings = data;
         const container = document.getElementById('settings-list');
-        if (!container) return;
-
-        container.innerHTML = Object.keys(data).map(key => {
-            const item = data[key];
-            const safeKey = escapeHtml(key);
-            return `
-                <div class="glass-panel p-4 rounded-xl border border-slate-700/60 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-                    <div class="md:w-1/3">
-                        <span class="font-mono text-sky-400 font-bold block">${safeKey}</span>
-                        <p class="text-slate-400 text-[11px]">${escapeHtml(item.description || '')}</p>
+        if (container) {
+            container.innerHTML = Object.keys(data).map(key => {
+                const item = data[key];
+                const safeKey = escapeHtml(key);
+                return `
+                    <div class="glass-panel p-4 rounded-xl border border-slate-700/60 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+                        <div class="md:w-1/3">
+                            <span class="font-mono text-sky-400 font-bold block">${safeKey}</span>
+                            <p class="text-slate-400 text-[11px]">${escapeHtml(item.description || '')}</p>
+                        </div>
+                        <div class="md:w-1/2">
+                            <input type="text" id="setting-${safeKey}" value="${escapeHtml(item.value || '')}" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-sky-500 font-mono text-xs">
+                        </div>
                     </div>
-                    <div class="md:w-1/2">
-                        <input type="text" id="setting-${safeKey}" value="${escapeHtml(item.value || '')}" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-sky-500 font-mono text-xs">
+                `;
+            }).join('');
+        }
+
+        const integPanel = document.getElementById('integrations-panel');
+        if (integPanel) {
+            let integ = { gemini_api_key: { configured: false, masked: '' }, google_tts_model: '', google_image_model: '', google_use_imagen: false, note: '' };
+            if (integRes && integRes.ok) integ = await integRes.json();
+            integPanel.innerHTML = `
+                <div class="glass-panel p-5 rounded-2xl border border-sky-500/20 bg-sky-500/5 space-y-4">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2"><i class="fa-solid fa-key text-amber-400"></i><span>مفاتيح الربط والخدمات</span></h3>
+                            <p class="text-[11px] text-slate-400 mt-1">${escapeHtml(integ.note || '')}</p>
+                        </div>
+                        <span class="text-[11px] px-2.5 py-1 rounded-full ${integ.gemini_api_key?.configured ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'} font-bold">${integ.gemini_api_key?.configured ? 'Gemini: مهيأ' : 'Gemini: غير مهيأ'}</span>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                        <label class="block md:col-span-2">
+                            <span class="block text-slate-300 font-bold mb-1">GEMINI_API_KEY ${integ.gemini_api_key?.masked ? `<span class="text-slate-500 font-mono">(${escapeHtml(integ.gemini_api_key.masked)})</span>` : ''}</span>
+                            <input type="password" id="integration-gemini-key" placeholder="الصق مفتاح Google Gemini API هنا" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-sky-500 font-mono">
+                            <span class="block text-[11px] text-slate-500 mt-1">اتركه فارغًا إذا لا تريد تغييره عند الحفظ. مطلوب لأصوات/صور Google، بينما يعمل الصوت بديل Edge TTS بدون مفتاح.</span>
+                        </label>
+                        <label class="block">
+                            <span class="block text-slate-300 font-bold mb-1">GOOGLE_TTS_MODEL</span>
+                            <input type="text" id="integration-tts-model" value="${escapeHtml(integ.google_tts_model || 'gemini-2.5-flash-preview-tts')}" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-sky-500 font-mono">
+                        </label>
+                        <label class="block">
+                            <span class="block text-slate-300 font-bold mb-1">GOOGLE_IMAGE_MODEL (اختياري)</span>
+                            <input type="text" id="integration-image-model" value="${escapeHtml(integ.google_image_model || '')}" placeholder="مثال: imagen-4.0-generate-001" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-sky-500 font-mono">
+                        </label>
+                        <label class="flex items-center gap-2 md:col-span-2 text-slate-300">
+                            <input type="checkbox" id="integration-use-imagen" ${integ.google_use_imagen ? 'checked' : ''} class="rounded border-slate-600 bg-slate-900">
+                            <span>استخدام Google Imagen لتوليد الصور عند تهيئته (GOOGLE_USE_IMAGEN)</span>
+                        </label>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="saveIntegrationKeys()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition"><i class="fa-solid fa-key ml-1"></i>حفظ مفتاح/إعدادات الربط</button>
+                        <button onclick="loadSettings()" class="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-100 font-bold text-xs transition">تحديث الحالة</button>
                     </div>
                 </div>
             `;
-        }).join('');
+        }
     } catch (err) {
         console.error('Error loading settings:', err);
+    }
+}
+
+async function saveIntegrationKeys() {
+    const geminiInput = document.getElementById('integration-gemini-key');
+    const payload = {
+        google_tts_model: document.getElementById('integration-tts-model')?.value || '',
+        google_image_model: document.getElementById('integration-image-model')?.value || '',
+        google_use_imagen: !!document.getElementById('integration-use-imagen')?.checked
+    };
+    if (geminiInput && geminiInput.value.trim()) payload.gemini_api_key = geminiInput.value.trim();
+    try {
+        const res = await apiFetch('/api/integrations/keys', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.detail || 'تعذر حفظ المفاتيح');
+        if (geminiInput) geminiInput.value = '';
+        showToast('تم حفظ إعدادات الربط وتطبيقها فورًا.', 'success');
+        await loadSettings();
+        await loadOverview();
+    } catch (err) {
+        showToast(`خطأ في حفظ الربط: ${err.message}`, 'error');
     }
 }
 

@@ -715,6 +715,43 @@ async def update_settings(payload: Dict[str, str] = Body(...)):
     return {"success": True, "message": "Settings updated successfully."}
 
 
+@app.get("/api/integrations/status")
+async def integrations_status():
+    def mask(v: str):
+        if not v:
+            return ""
+        return ("*" * max(0, len(v) - 4)) + v[-4:] if len(v) > 4 else "*" * len(v)
+    return {
+        "gemini_api_key": {"configured": bool(Config.GEMINI_API_KEY), "masked": mask(Config.GEMINI_API_KEY)},
+        "google_use_imagen": bool(getattr(Config, "GOOGLE_USE_IMAGEN", False)),
+        "google_tts_model": getattr(Config, "GOOGLE_TTS_MODEL", ""),
+        "google_image_model": getattr(Config, "GOOGLE_IMAGE_MODEL", ""),
+        "env_file": str(BASE_DIR / ".env"),
+        "note": "يُحفظ المفتاح محليًا في ملف .env ويُطبّق فورًا على الجلسة الحالية. على Vercel أضفه كمتغير بيئة وأعد النشر."
+    }
+
+
+@app.post("/api/integrations/keys")
+async def update_integration_keys(payload: Dict[str, Any] = Body(...)):
+    updates = {}
+    if "gemini_api_key" in payload:
+        updates["GEMINI_API_KEY"] = str(payload.get("gemini_api_key") or "").strip()
+    if "google_tts_model" in payload and str(payload.get("google_tts_model") or "").strip():
+        updates["GOOGLE_TTS_MODEL"] = str(payload.get("google_tts_model")).strip()
+    if "google_image_model" in payload:
+        updates["GOOGLE_IMAGE_MODEL"] = str(payload.get("google_image_model") or "").strip()
+    if "google_use_imagen" in payload:
+        updates["GOOGLE_USE_IMAGEN"] = "true" if bool(payload.get("google_use_imagen")) else "false"
+    if not updates:
+        raise HTTPException(status_code=400, detail="لم يتم إرسال أي مفاتيح/إعدادات للتحديث.")
+    Config.set_runtime_env(updates)
+    # refresh in-memory flags derived as bool
+    Config.GOOGLE_USE_IMAGEN = os.getenv("GOOGLE_USE_IMAGEN", "false").lower() == "true"
+    Config.GOOGLE_TTS_MODEL = os.getenv("GOOGLE_TTS_MODEL", Config.GOOGLE_TTS_MODEL)
+    Config.GOOGLE_IMAGE_MODEL = os.getenv("GOOGLE_IMAGE_MODEL", Config.GOOGLE_IMAGE_MODEL)
+    return {"success": True, "status": await integrations_status()}
+
+
 @app.post("/api/pipeline/run-full-cycle")
 async def run_full_automation_cycle():
     """Executes a full end-to-end automation test cycle."""
