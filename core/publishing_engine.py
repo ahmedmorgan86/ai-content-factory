@@ -77,7 +77,7 @@ class PublishingEngine:
         # Record to Publishing.csv
         file_exists = self.publishing_csv.exists()
         headers = [
-            "Publish ID", "Idea ID", "Video Title", "Platform", "Prepared Date", 
+            "Publish ID", "Idea ID", "Video Title", "Platform", "Prepared Date",
             "Published Date", "Post URL", "Publishing Mode", "User Approval Status", 
             "Execution Log", "Last Status Check"
         ]
