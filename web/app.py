@@ -75,10 +75,10 @@ async def serve_audio(idea_id: str, filename: str):
     """Serves generated VoxArabic voiceover audio file."""
     target = STORAGE_ROOT / idea_id / "Audio" / filename
     if target.exists() and target.is_file():
-        return FileResponse(target, media_type="audio/mpeg")
+        return FileResponse(target, media_type="audio/wav" if target.suffix.lower() == ".wav" else "audio/mpeg")
     fallback = BASE_DIR / "storage" / "AI Content Factory" / "2026" / idea_id / "Audio" / filename
     if fallback.exists() and fallback.is_file():
-        return FileResponse(fallback, media_type="audio/mpeg")
+        return FileResponse(fallback, media_type="audio/wav" if fallback.suffix.lower() == ".wav" else "audio/mpeg")
     raise HTTPException(status_code=404, detail="Audio file not found")
 
 @app.get("/api/video/{idea_id}/{filename}")
@@ -279,15 +279,16 @@ async def get_production_package(idea_id: str):
     audio_dir = video_dir / "Audio"
     audio_data = None
     if audio_dir.exists():
-        mp3s = list(audio_dir.glob("*.mp3"))
-        if mp3s:
-            latest_mp3 = mp3s[-1]
+        audio_files = sorted([*audio_dir.glob("*.mp3"), *audio_dir.glob("*.wav")], key=lambda f: f.stat().st_mtime)
+        if audio_files:
+            latest_audio = audio_files[-1]
             audio_data = {
                 "available": True,
-                "url": f"/api/audio/{idea_id}/{latest_mp3.name}",
-                "filename": latest_mp3.name,
-                "size_kb": round(latest_mp3.stat().st_size / 1024, 1),
-                "voice_name": "شاكر (مصري استوديو)" if "shakir" in latest_mp3.name else "سلمى (مصرية إذاعية)"
+                "url": f"/api/audio/{idea_id}/{latest_audio.name}",
+                "filename": latest_audio.name,
+                "size_kb": round(latest_audio.stat().st_size / 1024, 1),
+                "voice_name": next((v["name"] for k, v in voice_engine.get_available_voices().items() if f"_{k}." in latest_audio.name), "Google / Edge TTS"),
+                "provider": "Google Gemini TTS" if latest_audio.suffix == ".wav" else "Edge TTS"
             }
 
     # Check Rendered Videos & Scene Frames
@@ -395,16 +396,14 @@ def generate_production_package(payload: Dict[str, Any] = Body(...)):
             idea_id, idea_dict["video_title"], seo_pkg, thumb_res, approved=False
         )
 
-        # 6. Generate Egyptian Voiceover via VoxArabic Engine
-        voice_res = None
-        try:
-            voice_res = voice_engine.generate_voiceover(
-                idea_id=idea_id,
-                text=script_to_use["full_voiceover"],
-                voice_key="shakir"
-            )
-        except Exception as ve:
-            print(f"Voice generation warning: {ve}")
+        # 6. Generate video-type matched Egyptian Arabic voiceover with Google Gemini TTS.
+        voice_key = "google_puck" if idea_dict["video_type"] == "Short-form" else "google_charon"
+        voice_res = voice_engine.generate_voiceover(
+            idea_id=idea_id,
+            text=script_to_use["full_voiceover"],
+            voice_key=voice_key,
+            video_type=idea_dict["video_type"]
+        )
 
         # 7. Render Ready-to-Publish Video (Shorts 9:16 or Long 16:9)
         video_res = None
@@ -412,8 +411,9 @@ def generate_production_package(payload: Dict[str, Any] = Body(...)):
             video_res = video_engine.render_video_for_idea(
                 idea_id=idea_id,
                 script_data=script_to_use,
-                voice_key="shakir",
-                is_vertical=("Short" in idea_dict["video_type"])
+                voice_key=voice_key,
+                is_vertical=("Short" in idea_dict["video_type"]),
+                video_type=idea_dict["video_type"]
             )
         except Exception as vre:
             print(f"Video rendering warning: {vre}")
@@ -439,7 +439,7 @@ def generate_production_package(payload: Dict[str, Any] = Body(...)):
 def generate_voiceover_endpoint(payload: Dict[str, Any] = Body(...)):
     """Generates authentic Egyptian Arabic voiceover using VoxArabicStudio engine."""
     idea_id = payload.get("idea_id")
-    voice_key = payload.get("voice_key", "shakir")
+    voice_key = payload.get("voice_key", "google_puck")
     custom_text = payload.get("text")
     if not idea_id:
         raise HTTPException(status_code=400, detail="idea_id is required")
@@ -458,18 +458,22 @@ def generate_voiceover_endpoint(payload: Dict[str, Any] = Body(...)):
         raise HTTPException(status_code=400, detail="No voiceover text found or provided.")
 
     try:
-        res = voice_engine.generate_voiceover(idea_id, text_to_speak, voice_key=voice_key)
+        ideas = idea_engine.get_all_ideas()
+        idea = next((i for i in ideas if i.get("Idea ID") == idea_id), {})
+        res = voice_engine.generate_voiceover(idea_id, text_to_speak, voice_key=voice_key, video_type=idea.get("Video Type", "Short-form"))
         res["url"] = f"/api/audio/{idea_id}/{res['filename']}"
         return {"success": True, "audio": res}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Voice synthesis failed: {str(e)}")
+        message = str(e)
+        status_code = 503 if "GEMINI_API_KEY is not configured" in message else 500
+        raise HTTPException(status_code=status_code, detail=f"Voice synthesis failed: {message}")
 
 
 @app.post("/api/video/render")
 def render_video_endpoint(payload: Dict[str, Any] = Body(...)):
     """Renders scenes, visual prompts, and VoxArabic voiceover into ready-to-publish MP4."""
     idea_id = payload.get("idea_id")
-    voice_key = payload.get("voice_key", "shakir")
+    voice_key = payload.get("voice_key", "google_puck")
     is_vertical = payload.get("is_vertical", True)
     if not idea_id:
         raise HTTPException(status_code=400, detail="idea_id is required")
@@ -478,7 +482,8 @@ def render_video_endpoint(payload: Dict[str, Any] = Body(...)):
         res = video_engine.render_video_for_idea(
             idea_id=idea_id,
             voice_key=voice_key,
-            is_vertical=is_vertical
+            is_vertical=is_vertical,
+            video_type="Short-form" if is_vertical else "Long-form"
         )
         res["url"] = f"/api/video/{idea_id}/{res['filename']}"
         return {"success": True, "video": res}

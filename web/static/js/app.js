@@ -359,7 +359,7 @@ function renderStudioPackage(data) {
                     <div class="pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
                         <div class="flex items-center space-x-2 space-x-reverse text-xs">
                             <span class="text-slate-400">الصيغة:</span>
-                            <select id="video-render-format" class="px-2.5 py-1 rounded bg-slate-900 border border-slate-700 text-slate-200 text-xs focus:outline-none">
+                            <select id="video-render-format" class="px-2.5 py-1 rounded bg-slate-900 border border-slate-700 text-slate-200 text-xs focus:outline-none" onchange="syncVoiceForVideoType()">
                                 <option value="vertical">شورتس وريلز (9:16 عمودي)</option>
                                 <option value="horizontal">يوتيوب طويل (16:9 أفقي)</option>
                             </select>
@@ -376,10 +376,10 @@ function renderStudioPackage(data) {
                     <div class="flex items-center justify-between pb-3 border-b border-slate-800">
                         <div class="flex items-center space-x-2 space-x-reverse text-sky-400 font-bold">
                             <i class="fa-solid fa-microphone-lines text-xl"></i>
-                            <span class="text-base">التعليق الصوتي (VoxArabicStudio Engine)</span>
+                            <span class="text-base">التعليق الصوتي (VoxArabicStudio + Google Gemini)</span>
                         </div>
                         <span class="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-2.5 py-1 rounded-full border border-sky-500/30">
-                            لهجة مصرية أصيلة 🇪🇬
+                            Google Gemini TTS • مصري 🇪🇬
                         </span>
                     </div>
 
@@ -410,9 +410,14 @@ function renderStudioPackage(data) {
                         <div class="flex flex-wrap items-center justify-between gap-3 text-xs">
                             <div class="flex items-center space-x-2 space-x-reverse">
                                 <span class="text-slate-400">المعلق الصوتي:</span>
-                                <select id="voice-selector" class="px-2.5 py-1 rounded bg-slate-900 border border-slate-700 text-slate-200 text-xs focus:outline-none">
-                                    <option value="shakir">شاكر (استوديو احترافي - صوت إذاعي مصري رجالي)</option>
-                                    <option value="salma">سلمى (استوديو إذاعي - صوت مصري طبيعي أنثوي)</option>
+                                <select id="voice-selector" class="px-2.5 py-1 rounded bg-slate-900 border border-slate-700 text-slate-200 text-xs focus:outline-none" onchange="syncVoiceForVideoType()">
+                                    <option value="google_puck">Google Puck (مصري حيوي للشورتس)</option>
+                                    <option value="google_charon">Google Charon (مصري عميق للفيديو الطويل)</option>
+                                    <option value="google_kore">Google Kore (مصري واضح وودود)</option>
+                                    <option value="google_fenrir">Google Fenrir (مصري قوي وحماسي)</option>
+                                    <option value="google_zephyr">Google Zephyr (مصري هادئ)</option>
+                                    <option value="shakir">شاكر (Edge TTS - رجالي)</option>
+                                    <option value="salma">سلمى (Edge TTS - أنثوي)</option>
                                 </select>
                             </div>
                             <button id="btn-generate-voice" onclick="triggerVoiceover('${data.idea_id}')" class="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-md transition flex items-center space-x-2 space-x-reverse">
@@ -666,6 +671,17 @@ async function approvePublishing(ideaId) {
     }
 }
 
+function syncVoiceForVideoType() {
+    const formatSelector = document.getElementById('video-render-format');
+    const voiceSelector = document.getElementById('voice-selector');
+    if (!formatSelector || !voiceSelector) return;
+    const longForm = formatSelector.value === 'horizontal';
+    const current = voiceSelector.value;
+    if (current === 'google_puck' || current === 'google_charon') {
+        voiceSelector.value = longForm ? 'google_charon' : 'google_puck';
+    }
+}
+
 // Action: Trigger VoxArabic Voiceover
 async function triggerVoiceover(ideaId) {
     const selector = document.getElementById('voice-selector');
@@ -675,7 +691,7 @@ async function triggerVoiceover(ideaId) {
         btn.disabled = true;
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>جارٍ التسجيل الصوتي...</span>';
     }
-    showToast(`جارٍ توليد التعليق الصوتي باللهجة المصرية عبر VoxArabicStudio...`, 'info');
+    showToast(`جارٍ توليد التعليق الصوتي المصري عبر Google Gemini TTS...`, 'info');
     try {
         const res = await fetch('/api/voice/generate', {
             method: 'POST',
@@ -684,7 +700,9 @@ async function triggerVoiceover(ideaId) {
         });
         if (!res.ok) {
             const err = await res.text();
-            throw new Error(err || res.statusText);
+            let detail = err || res.statusText;
+            try { detail = JSON.parse(err).detail || detail; } catch (_) {}
+            throw new Error(detail);
         }
         const data = await res.json();
         showToast('تم إنتاج التعليق الصوتي بنجاح!', 'success');
@@ -718,7 +736,9 @@ async function triggerVideoRender(ideaId) {
         });
         if (!res.ok) {
             const err = await res.text();
-            throw new Error(err || res.statusText);
+            let detail = err || res.statusText;
+            try { detail = JSON.parse(err).detail || detail; } catch (_) {}
+            throw new Error(detail);
         }
         const data = await res.json();
         showToast('🎉 تم رندر وتجميع الفيديو النهائي بنجاح وجاهز للنشر!', 'success');

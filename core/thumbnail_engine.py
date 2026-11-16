@@ -48,6 +48,23 @@ class ThumbnailEngine:
         """
         if seed is None:
             seed = random.randint(1000, 999999)
+
+        if Config.GOOGLE_USE_IMAGEN:
+            if not Config.GEMINI_API_KEY:
+                raise RuntimeError("Google Imagen is enabled but GEMINI_API_KEY is not configured.")
+            try:
+                from google import genai
+                from google.genai import types
+                client = genai.Client(api_key=Config.GEMINI_API_KEY)
+                model = Config.GOOGLE_IMAGE_MODEL or "imagen-4.0-generate-001"
+                result = client.models.generate_images(model=model, prompt=prompt, config=types.GenerateImagesConfig(number_of_images=1))
+                image_bytes = result.generated_images[0].image.image_bytes
+                img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+                if img.size != (width, height):
+                    img = img.resize((width, height), Image.Resampling.LANCZOS)
+                return img, f"Google Imagen ({model})"
+            except Exception as exc:
+                raise RuntimeError(f"Google Imagen generation failed: {exc}") from exc
             
         try:
             encoded = urllib.parse.quote(prompt[:300])

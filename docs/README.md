@@ -118,6 +118,11 @@ ai-content-factory/
 
 ## 🛠️ 5. خطوات التثبيت والربط السحابي (Cloud & Local Setup)
 
+### إعداد Google Gemini وVoxArabicStudio
+استخدم `GEMINI_API_KEY` كمتغير بيئة سري على الخادم لتفعيل Gemini TTS المدمج مع VoxArabicStudio. النموذج الافتراضي `gemini-2.5-flash-preview-tts`؛ يختار النظام Puck للشورتس وCharon للفيديوهات الطويلة، ويستخدم ملف WAV الناتج مباشرة في تركيب الفيديو. ويمكن استخدام `GOOGLE_TTS_MODEL` لتغيير النموذج. قد تطبق حدود استخدام أو رسوم حسب خطة Google.
+
+لتوليد الصور عبر Google Imagen بدلاً من مزود الصور الحالي، اضبط `GOOGLE_USE_IMAGEN=true` و`GOOGLE_IMAGE_MODEL` اختيارياً. قد يتطلب ذلك تفعيل الفوترة والصلاحيات في Google Cloud. الصوت والصور والنصوص خدمات مستقلة ولا يعني تفعيل Gemini TTS تحويل كل مراحل الإنتاج تلقائياً إلى Google.
+
 ### الخطوة 1: استيراد سيناريوهات Make.com
 1. سجل الدخول إلى حسابك على [Make.com](https://www.make.com/).
 2. أنشئ سيناريو جديد (Create a new scenario).
