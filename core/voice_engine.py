@@ -97,7 +97,12 @@ class VoiceEngine:
         if current:
             chunks.append(current)
         chunks = chunks or [cleaned_text]
-        client = genai.Client(api_key=Config.GEMINI_API_KEY)
+        # google-genai 3.x defaults Gemini Developer API requests to v1.
+        # Gemini TTS speech_config is accepted by the v1beta generateContent API.
+        client = genai.Client(
+            api_key=Config.GEMINI_API_KEY,
+            http_options=types.HttpOptions(api_version="v1beta"),
+        )
         pcm_chunks = []
         for chunk in chunks:
             prompt = f"{style} Perform this Egyptian Arabic script exactly as written. Do not translate, summarize, or add words: {chunk}"
