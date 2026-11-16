@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+@source "../index.html";
+@source "../js/**/*.js";
+
+@theme {
+    --color-slate-850: #151f32;
+    --color-slate-950: #070d18;
+}
