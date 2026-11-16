@@ -28,22 +28,43 @@ document.addEventListener('DOMContentLoaded', () => {
     initNavigation();
     const savedToken = sessionStorage.getItem('medad_admin_token');
     const panel = document.getElementById('admin-access-panel');
+    const errorMessage = document.getElementById('admin-access-error');
     const beginApp = () => {
         panel?.classList.add('hidden');
         loadOverview(); loadIdeas(); loadAnalytics(); loadSettings();
     };
-    apiFetch('/api/auth/status').then(response => response.json()).then(({ required }) => {
+    const requestAuthStatus = apiFetch('/api/auth/status').then(response => {
+        if (!response.ok) throw new Error('تعذر التحقق من حالة تسجيل الدخول');
+        return response.json();
+    });
+    requestAuthStatus.then(({ required }) => {
         if (!required) beginApp();
         else if (savedToken) {
             apiFetch('/api/settings').then(response => {
                 if (response.ok) beginApp();
-                else { sessionStorage.removeItem('medad_admin_token'); panel?.classList.remove('hidden'); }
-            }).catch(() => panel?.classList.remove('hidden'));
+                else {
+                    sessionStorage.removeItem('medad_admin_token');
+                    panel?.classList.remove('hidden');
+                    if (errorMessage) errorMessage.textContent = 'انتهت صلاحية الجلسة أو الرمز غير صحيح. أدخل رمز الإدارة مرة أخرى.';
+                }
+            }).catch(() => {
+                panel?.classList.remove('hidden');
+                if (errorMessage) errorMessage.textContent = 'تعذر الاتصال بالخادم. أعد المحاولة بعد قليل.';
+            });
         } else panel?.classList.remove('hidden');
-    }).catch(() => panel?.classList.remove('hidden'));
+    }).catch(() => {
+        panel?.classList.remove('hidden');
+        if (errorMessage) errorMessage.textContent = 'تعذر التحقق من إعدادات الدخول. حدّث الصفحة وحاول مرة أخرى.';
+    });
     document.getElementById('admin-access-submit')?.addEventListener('click', async () => {
         const field = document.getElementById('admin-access-token');
         const token = field?.value || '';
+        if (!token) {
+            if (errorMessage) errorMessage.textContent = 'أدخل رمز الإدارة أولًا.';
+            field?.focus();
+            return;
+        }
+        if (errorMessage) errorMessage.textContent = '';
         sessionStorage.setItem('medad_admin_token', token);
         try {
             const response = await apiFetch('/api/settings');
@@ -52,8 +73,12 @@ document.addEventListener('DOMContentLoaded', () => {
             beginApp();
         } catch (error) {
             sessionStorage.removeItem('medad_admin_token');
-            showToast(error.message, 'error');
+            if (errorMessage) errorMessage.textContent = error.message || 'تعذر تسجيل الدخول. حاول مرة أخرى.';
+            field?.focus();
         }
+    });
+    document.getElementById('admin-access-token')?.addEventListener('keydown', event => {
+        if (event.key === 'Enter') document.getElementById('admin-access-submit')?.click();
     });
 });
 
