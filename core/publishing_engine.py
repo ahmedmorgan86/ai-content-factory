@@ -74,33 +74,43 @@ class PublishingEngine:
             }
         ]
 
-        # Record to Publishing.csv
-        file_exists = self.publishing_csv.exists()
+        # Record publishing manifest (Firestore when configured, else CSV)
+        from core import firestore_store
         headers = [
             "Publish ID", "Idea ID", "Video Title", "Platform", "Prepared Date",
-            "Published Date", "Post URL", "Publishing Mode", "User Approval Status", 
+            "Published Date", "Post URL", "Publishing Mode", "User Approval Status",
             "Execution Log", "Last Status Check"
         ]
 
-        with open(self.publishing_csv, mode="a", newline="", encoding="utf-8-sig") as f:
-            writer = csv.writer(f)
-            if not file_exists:
-                writer.writerow(headers)
-            for p in platforms_payload:
-                publish_id = f"PUB-{idea_id}-{p['platform'].replace(' ', '_')}"
-                writer.writerow([
-                    publish_id,
-                    idea_id,
-                    p.get("title", title),
-                    p["platform"],
-                    now_str,
-                    "-",
-                    "-",
-                    p["mode"],
-                    "Approved for manual publishing",
-                    "Payload prepared and validated",
-                    now_str
-                ])
+        rows_to_write = []
+        for p in platforms_payload:
+            publish_id = f"PUB-{idea_id}-{p['platform'].replace(' ', '_')}"
+            row = {
+                "Publish ID": publish_id,
+                "Idea ID": idea_id,
+                "Video Title": p.get("title", title),
+                "Platform": p["platform"],
+                "Prepared Date": now_str,
+                "Published Date": "-",
+                "Post URL": "-",
+                "Publishing Mode": p["mode"],
+                "User Approval Status": "Approved for manual publishing",
+                "Execution Log": "Payload prepared and validated",
+                "Last Status Check": now_str,
+            }
+            rows_to_write.append(row)
+
+        if firestore_store.enabled():
+            for row in rows_to_write:
+                firestore_store.set_document("publishing", row["Publish ID"], row, merge=True)
+        else:
+            file_exists = self.publishing_csv.exists()
+            with open(self.publishing_csv, mode="a", newline="", encoding="utf-8-sig") as f:
+                writer = csv.writer(f)
+                if not file_exists:
+                    writer.writerow(headers)
+                for row in rows_to_write:
+                    writer.writerow([row[h] for h in headers])
 
         return {
             "status": "SUCCESS_PREPARED",

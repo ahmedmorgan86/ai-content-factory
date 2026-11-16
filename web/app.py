@@ -380,15 +380,19 @@ async def get_production_package(idea_id: str):
                 "filename": f.name
             })
 
-    # Get Publishing status from CSV
+    # Get Publishing status (Firestore when configured, else CSV)
     publishing_records = []
-    pub_csv = DB_DIR / "Publishing.csv"
-    if pub_csv.exists():
-        with open(pub_csv, "r", encoding="utf-8-sig") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                if row.get("Idea ID") == idea_id:
-                    publishing_records.append(row)
+    from core import firestore_store
+    if firestore_store.enabled():
+        publishing_records = firestore_store.get_records_by("publishing", "Idea ID", idea_id) or []
+    else:
+        pub_csv = DB_DIR / "Publishing.csv"
+        if pub_csv.exists():
+            with open(pub_csv, "r", encoding="utf-8-sig") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    if row.get("Idea ID") == idea_id:
+                        publishing_records.append(row)
 
     # Find idea metadata
     ideas = idea_engine.get_all_ideas()
@@ -667,7 +671,13 @@ async def refresh_analytics():
 
 @app.get("/api/settings")
 async def get_settings():
-    """Reads settings from Settings.csv."""
+    """Reads settings from Firestore when configured, else Settings.csv."""
+    from core import firestore_store
+    if firestore_store.enabled():
+        data = firestore_store.get_settings() or {}
+        if data:
+            return data
+        # if firestore configured but empty, fall through to seed from csv once
     settings_dict = {}
     settings_path = DB_DIR / "Settings.csv"
     if settings_path.exists():
@@ -681,6 +691,12 @@ async def get_settings():
                         "description": row[2].strip() if len(row) > 2 else "",
                         "notes": row[3].strip() if len(row) > 3 else ""
                     }
+    # seed firestore if enabled but empty
+    if firestore_store.enabled() and settings_dict:
+        try:
+            firestore_store.save_settings(settings_dict)
+        except Exception:
+            pass
     return settings_dict
 
 
@@ -691,7 +707,19 @@ async def auth_status():
 
 @app.post("/api/settings")
 async def update_settings(payload: Dict[str, str] = Body(...)):
-    """Updates settings in Settings.csv and applies to runtime Config."""
+    """Updates workspace settings (Firestore when configured, else Settings.csv)."""
+    from core import firestore_store
+    if firestore_store.enabled():
+        current = firestore_store.get_settings() or await get_settings()
+        for k, v in payload.items():
+            if k in current and isinstance(current[k], dict):
+                current[k]["value"] = v
+            else:
+                current[k] = {"value": v, "description": "", "notes": ""}
+        firestore_store.save_settings(current)
+        Config.load_from_settings_csv()
+        return {"success": True, "message": "تم حفظ الإعدادات في Firestore.", "store": "firestore"}
+
     settings_path = DB_DIR / "Settings.csv"
     if not settings_path.exists():
         raise HTTPException(status_code=404, detail="Settings.csv not found")
@@ -712,11 +740,12 @@ async def update_settings(payload: Dict[str, str] = Body(...)):
         writer.writerows(rows)
 
     Config.load_from_settings_csv()
-    return {"success": True, "message": "Settings updated successfully."}
+    return {"success": True, "message": "Settings updated successfully.", "store": "csv"}
 
 
 @app.get("/api/integrations/status")
 async def integrations_status():
+    from core import firestore_store
     def mask(v: str):
         if not v:
             return ""
@@ -726,8 +755,11 @@ async def integrations_status():
         "google_use_imagen": bool(getattr(Config, "GOOGLE_USE_IMAGEN", False)),
         "google_tts_model": getattr(Config, "GOOGLE_TTS_MODEL", ""),
         "google_image_model": getattr(Config, "GOOGLE_IMAGE_MODEL", ""),
+        "firestore_project_id": {"configured": bool(Config.FIRESTORE_PROJECT_ID), "value": Config.FIRESTORE_PROJECT_ID},
+        "firebase_service_account_json": {"configured": bool(Config.FIREBASE_SERVICE_ACCOUNT_JSON), "masked": mask(Config.FIREBASE_SERVICE_ACCOUNT_JSON)},
+        "data_store": firestore_store.health(),
         "env_file": str(BASE_DIR / ".env"),
-        "note": "يُحفظ المفتاح محليًا في ملف .env ويُطبّق فورًا على الجلسة الحالية. على Vercel أضفه كمتغير بيئة وأعد النشر."
+        "note": "للتشغيل بوضع \"Firestore فقط\" أضف FIRESTORE_PROJECT_ID و FIREBASE_SERVICE_ACCOUNT_JSON (JSON لحساب الخدمة) ثم أعد تشغيل/نشر التطبيق. على Vercel أضفها كمتغيرات بيئة؛ الحفظ المحلي يكتب في .env للجلسة/التشغيل المحلي."
     }
 
 
@@ -742,16 +774,41 @@ async def update_integration_keys(payload: Dict[str, Any] = Body(...)):
         updates["GOOGLE_IMAGE_MODEL"] = str(payload.get("google_image_model") or "").strip()
     if "google_use_imagen" in payload:
         updates["GOOGLE_USE_IMAGEN"] = "true" if bool(payload.get("google_use_imagen")) else "false"
+    if "firestore_project_id" in payload:
+        updates["FIRESTORE_PROJECT_ID"] = str(payload.get("firestore_project_id") or "").strip()
+    if "firebase_service_account_json" in payload:
+        sa = str(payload.get("firebase_service_account_json") or "").strip()
+        if sa:
+            try:
+                json.loads(sa)
+            except Exception:
+                raise HTTPException(status_code=400, detail="FIREBASE_SERVICE_ACCOUNT_JSON يجب أن يكون JSON صالحًا.")
+            updates["FIREBASE_SERVICE_ACCOUNT_JSON"] = sa
+        elif "firebase_service_account_json" in payload and payload.get("firebase_service_account_json") == "":
+            updates["FIREBASE_SERVICE_ACCOUNT_JSON"] = ""
     if not updates:
         raise HTTPException(status_code=400, detail="لم يتم إرسال أي مفاتيح/إعدادات للتحديث.")
     Config.set_runtime_env(updates)
-    # refresh in-memory flags derived as bool
+    # refresh in-memory flags
     Config.GOOGLE_USE_IMAGEN = os.getenv("GOOGLE_USE_IMAGEN", "false").lower() == "true"
     Config.GOOGLE_TTS_MODEL = os.getenv("GOOGLE_TTS_MODEL", Config.GOOGLE_TTS_MODEL)
     Config.GOOGLE_IMAGE_MODEL = os.getenv("GOOGLE_IMAGE_MODEL", Config.GOOGLE_IMAGE_MODEL)
+    Config.FIRESTORE_PROJECT_ID = os.getenv("FIRESTORE_PROJECT_ID", Config.FIRESTORE_PROJECT_ID)
+    Config.FIREBASE_SERVICE_ACCOUNT_JSON = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON", Config.FIREBASE_SERVICE_ACCOUNT_JSON)
+    # reset cached firestore client if config changed
+    try:
+        from core.firestore_store import _client
+        _client.cache_clear()
+    except Exception:
+        pass
+    # reload settings from new store if available
+    try:
+        Config.load_from_settings_csv()
+    except Exception:
+        pass
     status = await integrations_status()
     if IS_VERCEL:
-        status["warning"] = "على Vercel الحفظ في .env غير دائم؛ أضف المفاتيح في Environment Variables وأعد النشر."
+        status["warning"] = "على Vercel الحفظ في .env غير دائم؛ أضف المفاتيح/إعدادات Firestore في Environment Variables وأعد النشر."
     return {"success": True, "status": status}
 
 

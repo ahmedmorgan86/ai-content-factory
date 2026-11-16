@@ -23,14 +23,8 @@ class AnalyticsEngine:
         self.analytics_csv = DB_DIR / "Analytics.csv"
 
     def record_metrics(self, record_data):
-        """Logs actual performance record into Analytics.csv and syncs Excel."""
-        headers = [
-            "Record ID", "Idea ID", "Video Title", "Platform", "Views", "Likes", 
-            "Comments", "Shares", "Watch Time (Mins)", "Average View Duration (AVD)", 
-            "CTR (%)", "Subscribers Growth", "Recorded Date", "AI Performance Score"
-        ]
-        file_exists = self.analytics_csv.exists()
-        
+        """Logs performance record (Firestore when configured, else CSV)."""
+        from core import firestore_store
         # Calculate algorithmic score (Retention & CTR weighted)
         views = float(record_data.get("views", 0))
         ctr = float(record_data.get("ctr", 0))
@@ -39,8 +33,34 @@ class AnalyticsEngine:
         score = min(score, 10.0)
 
         record_id = record_data.get("record_id", f"REC-{datetime.date.today().strftime('%Y%m%d')}")
-        
-        # Check if record already exists to update it, else append
+        row_map = {
+            "Record ID": record_id,
+            "Idea ID": record_data.get("idea_id", "IDEA-001"),
+            "Video Title": record_data.get("video_title", ""),
+            "Platform": record_data.get("platform", "YouTube"),
+            "Views": str(record_data.get("views", 0)),
+            "Likes": str(record_data.get("likes", 0)),
+            "Comments": str(record_data.get("comments", 0)),
+            "Shares": str(record_data.get("shares", 0)),
+            "Watch Time (Mins)": str(record_data.get("watch_time", 0)),
+            "Average View Duration (AVD)": str(record_data.get("avd", "00:00")),
+            "CTR (%)": str(record_data.get("ctr", 0)),
+            "Subscribers Growth": str(record_data.get("subscribers_growth", 0)),
+            "Recorded Date": datetime.date.today().isoformat(),
+            "AI Performance Score": f"{score}/10",
+        }
+
+        if firestore_store.enabled():
+            firestore_store.set_document("analytics", record_id, row_map, merge=True)
+            return score
+
+        headers = [
+            "Record ID", "Idea ID", "Video Title", "Platform", "Views", "Likes",
+            "Comments", "Shares", "Watch Time (Mins)", "Average View Duration (AVD)",
+            "CTR (%)", "Subscribers Growth", "Recorded Date", "AI Performance Score"
+        ]
+        file_exists = self.analytics_csv.exists()
+
         existing_rows = []
         updated = False
         if file_exists:
@@ -49,42 +69,10 @@ class AnalyticsEngine:
                 header = next(reader, None)
                 for row in reader:
                     if row and row[0] == record_id:
-                        row = [
-                            record_id,
-                            record_data.get("idea_id", "IDEA-001"),
-                            record_data.get("video_title", ""),
-                            record_data.get("platform", "YouTube"),
-                            str(record_data.get("views", 0)),
-                            str(record_data.get("likes", 0)),
-                            str(record_data.get("comments", 0)),
-                            str(record_data.get("shares", 0)),
-                            str(record_data.get("watch_time", 0)),
-                            str(record_data.get("avd", "00:00")),
-                            str(record_data.get("ctr", 0)),
-                            str(record_data.get("subscribers_growth", 0)),
-                            datetime.date.today().isoformat(),
-                            f"{score}/10"
-                        ]
+                        row = [row_map[h] for h in headers]
                         updated = True
                     if row:
                         existing_rows.append(row)
-        
-        new_row = [
-            record_id,
-            record_data.get("idea_id", "IDEA-001"),
-            record_data.get("video_title", ""),
-            record_data.get("platform", "YouTube"),
-            str(record_data.get("views", 0)),
-            str(record_data.get("likes", 0)),
-            str(record_data.get("comments", 0)),
-            str(record_data.get("shares", 0)),
-            str(record_data.get("watch_time", 0)),
-            str(record_data.get("avd", "00:00")),
-            str(record_data.get("ctr", 0)),
-            str(record_data.get("subscribers_growth", 0)),
-            datetime.date.today().isoformat(),
-            f"{score}/10"
-        ]
 
         with open(self.analytics_csv, mode="w", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
@@ -92,9 +80,8 @@ class AnalyticsEngine:
             for r in existing_rows:
                 writer.writerow(r)
             if not updated:
-                writer.writerow(new_row)
+                writer.writerow([row_map[h] for h in headers])
 
-        # Sync to Excel
         try:
             from database.generate_sheets_template import create_excel_workbook
             create_excel_workbook()
@@ -104,7 +91,12 @@ class AnalyticsEngine:
         return score
 
     def get_all_metrics(self):
-        """Reads all records from Analytics.csv."""
+        """Reads analytics records (Firestore when configured, else CSV)."""
+        from core import firestore_store
+        if firestore_store.enabled():
+            records = firestore_store.get_records("analytics") or []
+            # normalize keys for UI expectations
+            return records
         records = []
         if not self.analytics_csv.exists():
             return records

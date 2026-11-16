@@ -204,30 +204,33 @@ class ScriptEngine:
         }
 
     def save_script_to_database(self, script_data):
-        """Appends script to Scripts.csv."""
-        headers = [
-            "Script ID", "Idea ID", "Video Type", "Language", "Hook (0-3s)", 
-            "Full Voiceover (Egyptian Arabic)", "Scene Breakdown JSON", "Suggested CTA", 
-            "Word Count", "Estimated Duration", "Status", "Script File Link", "Last Updated"
-        ]
+        """Saves script record (Firestore when configured, else CSV)."""
+        from core import firestore_store
+        import datetime
+        row = {
+            "Script ID": script_data["script_id"],
+            "Idea ID": script_data["idea_id"],
+            "Video Type": script_data["video_type"],
+            "Language": script_data["language"],
+            "Hook (0-3s)": script_data["hook_3s"],
+            "Full Voiceover (Egyptian Arabic)": script_data["full_voiceover"],
+            "Scene Breakdown JSON": json.dumps(script_data["scene_breakdown"], ensure_ascii=False),
+            "Suggested CTA": script_data["cta"],
+            "Word Count": str(script_data["word_count"]),
+            "Estimated Duration": script_data["estimated_duration"],
+            "Status": script_data["status"],
+            "Script File Link": f"storage/AI Content Factory/2026/{script_data['idea_id']}/Scripts/{script_data['script_id']}.md",
+            "Last Updated": datetime.date.today().isoformat(),
+        }
+        if firestore_store.enabled():
+            firestore_store.set_document("scripts", script_data["script_id"], row, merge=True)
+            return script_data["script_id"]
+
+        headers = list(row.keys())
         file_exists = self.scripts_csv.exists()
         with open(self.scripts_csv, mode="a", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
             if not file_exists:
                 writer.writerow(headers)
-            writer.writerow([
-                script_data["script_id"],
-                script_data["idea_id"],
-                script_data["video_type"],
-                script_data["language"],
-                script_data["hook_3s"],
-                script_data["full_voiceover"],
-                json.dumps(script_data["scene_breakdown"], ensure_ascii=False),
-                script_data["cta"],
-                str(script_data["word_count"]),
-                script_data["estimated_duration"],
-                script_data["status"],
-                f"storage/AI Content Factory/2026/{script_data['idea_id']}/Scripts/{script_data['script_id']}.md",
-                "2026-11-15"
-            ])
+            writer.writerow([row[h] for h in headers])
         return script_data["script_id"]

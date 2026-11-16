@@ -92,23 +92,45 @@ class Config:
     
     @classmethod
     def load_from_settings_csv(cls):
-        """Loads settings from database/Settings.csv if present."""
+        """Loads settings from Firestore when configured, else from Settings.csv."""
+        # Prefer Firestore (durable / cloud) as source of truth when enabled.
+        try:
+            store = __import__("core.firestore_store", fromlist=["enabled", "get_settings"])
+            if store.enabled():
+                items = store.get_settings() or {}
+                if items:
+                    for k, item in items.items():
+                        v = item.get("value", "") if isinstance(item, dict) else str(item)
+                        cls._apply_setting(k, v)
+                    return
+        except Exception as e:
+            print(f"[!] Warning loading settings from Firestore: {e}")
+
         settings_path = DB_DIR / "Settings.csv"
         if not settings_path.exists():
             return
-        
+
         with open(settings_path, mode="r", encoding="utf-8-sig") as f:
             reader = csv.reader(f)
             header = next(reader, None)
             for row in reader:
                 if len(row) >= 2:
-                    k, v = row[0].strip(), row[1].strip()
-                    if k == "niche": cls.NICHE = v
-                    elif k == "language": cls.LANGUAGE = v
-                    elif k == "country": cls.COUNTRY = v
-                    elif k == "ideas_per_batch": cls.IDEAS_PER_BATCH = int(v) if v.isdigit() else 20
-                    elif k == "content_style": cls.CONTENT_STYLE = v
-                    elif k == "brand_identity": cls.BRAND_IDENTITY = v
+                    cls._apply_setting(row[0].strip(), row[1].strip())
+
+    @classmethod
+    def _apply_setting(cls, k, v):
+        if k == "niche":
+            cls.NICHE = v
+        elif k == "language":
+            cls.LANGUAGE = v
+        elif k == "country":
+            cls.COUNTRY = v
+        elif k == "ideas_per_batch":
+            cls.IDEAS_PER_BATCH = int(v) if str(v).isdigit() else 20
+        elif k == "content_style":
+            cls.CONTENT_STYLE = v
+        elif k == "brand_identity":
+            cls.BRAND_IDENTITY = v
 
     @classmethod
     def set_runtime_env(cls, updates: dict):

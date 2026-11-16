@@ -1059,22 +1059,38 @@ async function loadSettings() {
 
         const integPanel = document.getElementById('integrations-panel');
         if (integPanel) {
-            let integ = { gemini_api_key: { configured: false, masked: '' }, google_tts_model: '', google_image_model: '', google_use_imagen: false, note: '' };
+            let integ = { gemini_api_key: { configured: false, masked: '' }, google_tts_model: '', google_image_model: '', google_use_imagen: false, firestore_project_id: { configured: false, value: '' }, firebase_service_account_json: { configured: false, masked: '' }, data_store: {}, note: '' };
             if (integRes && integRes.ok) integ = await integRes.json();
+            const fsOk = !!(integ.data_store?.configured);
             integPanel.innerHTML = `
                 <div class="glass-panel p-5 rounded-2xl border border-sky-500/20 bg-sky-500/5 space-y-4">
-                    <div class="flex items-start justify-between gap-4">
+                    <div class="flex items-start justify-between gap-4 flex-wrap">
                         <div>
                             <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2"><i class="fa-solid fa-key text-amber-400"></i><span>مفاتيح الربط والخدمات</span></h3>
                             <p class="text-[11px] text-slate-400 mt-1">${escapeHtml(integ.note || '')}</p>
                         </div>
-                        <span class="text-[11px] px-2.5 py-1 rounded-full ${integ.gemini_api_key?.configured ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'} font-bold">${integ.gemini_api_key?.configured ? 'Gemini: مهيأ' : 'Gemini: غير مهيأ'}</span>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="text-[11px] px-2.5 py-1 rounded-full ${integ.gemini_api_key?.configured ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'} font-bold">${integ.gemini_api_key?.configured ? 'Gemini: مهيأ' : 'Gemini: غير مهيأ'}</span>
+                            <span class="text-[11px] px-2.5 py-1 rounded-full ${fsOk ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'} font-bold">${fsOk ? 'Firestore: مهيأ' : 'Firestore: غير مهيأ'}</span>
+                        </div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                        <div class="md:col-span-2 p-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 space-y-3">
+                            <div class="font-bold text-emerald-300 flex items-center gap-2"><i class="fa-solid fa-database"></i><span>وضع Firestore فقط (البيانات)</span></div>
+                            <label class="block">
+                                <span class="block text-slate-300 font-bold mb-1">FIRESTORE_PROJECT_ID ${integ.firestore_project_id?.value ? `<span class="text-slate-500 font-mono">(${escapeHtml(integ.firestore_project_id.value)})</span>` : ''}</span>
+                                <input type="text" id="integration-firestore-project" value="${escapeHtml(integ.firestore_project_id?.value || '')}" placeholder="معرّف مشروع Firebase/Firestore" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-sky-500 font-mono">
+                            </label>
+                            <label class="block">
+                                <span class="block text-slate-300 font-bold mb-1">FIREBASE_SERVICE_ACCOUNT_JSON ${integ.firebase_service_account_json?.masked ? `<span class="text-slate-500 font-mono">(محفوظ)</span>` : ''}</span>
+                                <textarea id="integration-firestore-sa" rows="4" placeholder='الصق JSON لحساب الخدمة بالكامل (اتركه فارغًا لعدم التغيير)' class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-sky-500 font-mono text-[11px]"></textarea>
+                                <span class="block text-[11px] text-slate-500 mt-1">عند تهيئة Firestore سيستخدمه التطبيق كمصدر للبيانات (الأفكار والإعدادات والتحليلات والسجلات) بدل CSV. على Vercel يُفضّل ضبط المتغيرات في Environment Variables وإعادة النشر.</span>
+                            </label>
+                        </div>
                         <label class="block md:col-span-2">
                             <span class="block text-slate-300 font-bold mb-1">GEMINI_API_KEY ${integ.gemini_api_key?.masked ? `<span class="text-slate-500 font-mono">(${escapeHtml(integ.gemini_api_key.masked)})</span>` : ''}</span>
-                            <input type="password" id="integration-gemini-key" placeholder="الصق مفتاح Google Gemini API هنا" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-sky-500 font-mono">
-                            <span class="block text-[11px] text-slate-500 mt-1">اتركه فارغًا إذا لا تريد تغييره عند الحفظ. مطلوب لأصوات/صور Google، بينما يعمل الصوت بديل Edge TTS بدون مفتاح.</span>
+                            <input type="password" id="integration-gemini-key" placeholder="الصق مفتاح Google Gemini API هنا (اختياري للصوت/الصور)" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-sky-500 font-mono">
+                            <span class="block text-[11px] text-slate-500 mt-1">اتركه فارغًا إذا لا تريد تغييره عند الحفظ.</span>
                         </label>
                         <label class="block">
                             <span class="block text-slate-300 font-bold mb-1">GOOGLE_TTS_MODEL</span>
@@ -1089,9 +1105,10 @@ async function loadSettings() {
                             <span>استخدام Google Imagen لتوليد الصور عند تهيئته (GOOGLE_USE_IMAGEN)</span>
                         </label>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <button onclick="saveIntegrationKeys()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition"><i class="fa-solid fa-key ml-1"></i>حفظ مفتاح/إعدادات الربط</button>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <button onclick="saveIntegrationKeys()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition"><i class="fa-solid fa-floppy-disk ml-1"></i>حفظ إعدادات الربط/Firestore</button>
                         <button onclick="loadSettings()" class="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-100 font-bold text-xs transition">تحديث الحالة</button>
+                        ${integ.data_store?.error ? `<span class="text-[11px] text-rose-300">${escapeHtml(integ.data_store.error)}</span>` : ''}
                     </div>
                 </div>
             `;
@@ -1103,12 +1120,15 @@ async function loadSettings() {
 
 async function saveIntegrationKeys() {
     const geminiInput = document.getElementById('integration-gemini-key');
+    const saInput = document.getElementById('integration-firestore-sa');
     const payload = {
         google_tts_model: document.getElementById('integration-tts-model')?.value || '',
         google_image_model: document.getElementById('integration-image-model')?.value || '',
-        google_use_imagen: !!document.getElementById('integration-use-imagen')?.checked
+        google_use_imagen: !!document.getElementById('integration-use-imagen')?.checked,
+        firestore_project_id: document.getElementById('integration-firestore-project')?.value || ''
     };
     if (geminiInput && geminiInput.value.trim()) payload.gemini_api_key = geminiInput.value.trim();
+    if (saInput && saInput.value.trim()) payload.firebase_service_account_json = saInput.value.trim();
     try {
         const res = await apiFetch('/api/integrations/keys', {
             method: 'POST',
@@ -1118,7 +1138,11 @@ async function saveIntegrationKeys() {
         const data = await res.json();
         if (!res.ok || !data.success) throw new Error(data.detail || 'تعذر حفظ المفاتيح');
         if (geminiInput) geminiInput.value = '';
-        showToast('تم حفظ إعدادات الربط وتطبيقها فورًا.', 'success');
+        if (saInput) saInput.value = '';
+        const msg = data.status?.data_store?.configured
+            ? 'تم حفظ الإعدادات. Firestore مهيأ ويمكن استخدامه كمصدر للبيانات.'
+            : 'تم حفظ إعدادات الربط وتطبيقها فورًا.';
+        showToast(msg, 'success');
         await loadSettings();
         await loadOverview();
     } catch (err) {

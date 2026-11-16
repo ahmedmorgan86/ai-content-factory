@@ -93,34 +93,35 @@ class SEOEngine:
         }
 
     def save_seo_to_database(self, seo_data):
-        """Appends SEO package to SEO.csv."""
-        headers = [
-            "SEO ID", "Idea ID", "Main Title", "Alternative Title 1", "Alternative Title 2", 
-            "Alternative Title 3", "Alternative Title 4", "Alternative Title 5", 
-            "YouTube Description", "Short Description (Reels/TikTok)", "Tags (Comma-separated)", 
-            "Hashtags", "Primary Keywords", "Secondary Keywords", "Pinned Comment", "Related Video Ideas"
-        ]
+        """Saves SEO record (Firestore when configured, else CSV)."""
+        from core import firestore_store
+        row = {
+            "SEO ID": seo_data["seo_id"],
+            "Idea ID": seo_data["idea_id"],
+            "Main Title": seo_data["recommended_best_title"],
+            "Alternative Title 1": seo_data["alternative_titles"][0],
+            "Alternative Title 2": seo_data["alternative_titles"][1],
+            "Alternative Title 3": seo_data["alternative_titles"][2],
+            "Alternative Title 4": seo_data["alternative_titles"][3],
+            "Alternative Title 5": seo_data["alternative_titles"][4],
+            "YouTube Description": seo_data["youtube_description"],
+            "Short Description (Reels/TikTok)": seo_data["short_description_reels_tiktok"],
+            "Tags (Comma-separated)": ", ".join(seo_data["tags_20"]),
+            "Hashtags": " ".join(seo_data["hashtags_5"]),
+            "Primary Keywords": ", ".join(seo_data["primary_keywords"]),
+            "Secondary Keywords": ", ".join(seo_data["secondary_keywords"]),
+            "Pinned Comment": seo_data["pinned_comment"],
+            "Related Video Ideas": ", ".join(seo_data["related_video_ideas"]),
+        }
+        if firestore_store.enabled():
+            firestore_store.set_document("seo", seo_data["seo_id"], row, merge=True)
+            return seo_data["seo_id"]
+
+        headers = list(row.keys())
         file_exists = self.seo_csv.exists()
         with open(self.seo_csv, mode="a", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
             if not file_exists:
                 writer.writerow(headers)
-            writer.writerow([
-                seo_data["seo_id"],
-                seo_data["idea_id"],
-                seo_data["recommended_best_title"],
-                seo_data["alternative_titles"][0],
-                seo_data["alternative_titles"][1],
-                seo_data["alternative_titles"][2],
-                seo_data["alternative_titles"][3],
-                seo_data["alternative_titles"][4],
-                seo_data["youtube_description"],
-                seo_data["short_description_reels_tiktok"],
-                ", ".join(seo_data["tags_20"]),
-                " ".join(seo_data["hashtags_5"]),
-                ", ".join(seo_data["primary_keywords"]),
-                ", ".join(seo_data["secondary_keywords"]),
-                seo_data["pinned_comment"],
-                ", ".join(seo_data["related_video_ideas"])
-            ])
+            writer.writerow([row[h] for h in headers])
         return seo_data["seo_id"]
