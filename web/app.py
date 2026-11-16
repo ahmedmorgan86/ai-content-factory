@@ -389,6 +389,7 @@ def generate_production_package(payload: Dict[str, Any] = Body(...)):
         "seo_keywords": [k.strip() for k in selected_idea.get("SEO Keywords", "").split(",") if k.strip()]
     }
 
+    stage = "السكريبت"
     try:
         # 1. Scripts
         short_script = script_engine.generate_short_script(idea_dict)
@@ -397,15 +398,18 @@ def generate_production_package(payload: Dict[str, Any] = Body(...)):
         script_engine.save_script_to_database(script_to_use)
 
         # 2. SEO Package
+        stage = "بيانات SEO"
         seo_pkg = seo_engine.generate_seo_package(idea_dict, script_to_use)
         seo_engine.save_seo_to_database(seo_pkg)
 
         # 3. Create Storage Structure & stage scripts/SEO
+        stage = "حفظ الملفات"
         storage_engine.create_video_structure(idea_id)
         storage_engine.save_script_asset(idea_id, script_to_use)
         storage_engine.save_seo_asset(idea_id, seo_pkg)
 
         # 4. Generate & Verify Thumbnails (1280x720 & 1080x1920)
+        stage = "إنشاء الصور المصغرة"
         target_thumb_dir = STORAGE_ROOT / idea_id / "Thumbnails"
         thumb_res = thumbnail_engine.generate_and_verify_thumbnails(
             idea_id, idea_dict["video_title"], output_dir=target_thumb_dir
@@ -417,6 +421,7 @@ def generate_production_package(payload: Dict[str, Any] = Body(...)):
         )
 
         # 6. Generate video-type matched Egyptian Arabic voiceover with Google Gemini TTS.
+        stage = "التعليق الصوتي من Google Gemini"
         voice_key = "google_puck" if idea_dict["video_type"] == "Short-form" else "google_charon"
         voice_res = voice_engine.generate_voiceover(
             idea_id=idea_id,
@@ -426,6 +431,7 @@ def generate_production_package(payload: Dict[str, Any] = Body(...)):
         )
 
         # 7. Render Ready-to-Publish Video (Shorts 9:16 or Long 16:9)
+        stage = "تركيب الفيديو"
         video_res = None
         try:
             video_res = video_engine.render_video_for_idea(
@@ -451,9 +457,15 @@ def generate_production_package(payload: Dict[str, Any] = Body(...)):
             "audio": voice_res,
             "video": video_res
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Production generation failed for {idea_id}: {type(e).__name__}: {e}")
-        raise HTTPException(status_code=500, detail=f"فشل إنتاج الحزمة للفكرة {idea_id}. راجع سجل الخادم للتفاصيل.")
+        print(f"Production generation failed for {idea_id} during {stage}: {type(e).__name__}: {e}")
+        status_code = 502 if stage == "التعليق الصوتي من Google Gemini" else 500
+        raise HTTPException(
+            status_code=status_code,
+            detail=f"فشل الإنتاج في مرحلة {stage}. راجع إعدادات الخدمة أو سجل الخادم للتفاصيل.",
+        )
 
 
 @app.post("/api/voice/generate")
@@ -634,6 +646,11 @@ async def update_settings(payload: Dict[str, str] = Body(...)):
 @app.post("/api/pipeline/run-full-cycle")
 async def run_full_automation_cycle():
     """Executes a full end-to-end automation test cycle."""
+    if not Config.GEMINI_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="دورة الإنتاج متوقفة: أضف GEMINI_API_KEY إلى متغيرات Vercel ثم أعد النشر.",
+        )
     try:
         # 1. Generate or fetch top idea
         ideas = idea_engine.get_all_ideas()
@@ -649,24 +666,7 @@ async def run_full_automation_cycle():
         # 2. Run production
         prod_res = await generate_production_package({"idea_id": idea_id})
 
-        # 3. Log analytics
-        rec_id = f"REC-{idea_id}"
-        analytics_engine.record_metrics({
-            "record_id": rec_id,
-            "idea_id": idea_id,
-            "video_title": candidate.get("Video Title", candidate.get("video_title", "")),
-            "platform": "YouTube",
-            "views": 42000,
-            "likes": 3100,
-            "comments": 220,
-            "shares": 540,
-            "watch_time": 210000,
-            "avd": "05:30",
-            "ctr": 12.1,
-            "subscribers_growth": 740
-        })
-
-        # 4. Refresh digest
+        # Analytics are collected only from real platform data, never synthetic demo values.
         digest = analytics_engine.update_weekly_digest()
 
         return {
@@ -676,8 +676,11 @@ async def run_full_automation_cycle():
             "production": prod_res,
             "weekly_digest": digest
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Pipeline execution error: {str(e)}")
+        print(f"Full production cycle failed: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail="فشلت دورة الإنتاج. راجع سجل الخادم لمعرفة المرحلة المتسببة.")
 
 
 if __name__ == "__main__":
