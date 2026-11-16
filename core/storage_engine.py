@@ -74,6 +74,12 @@ class StorageEngine:
                 providers.append(("Cloudflare R2", r2_storage))
         except Exception:
             pass
+        try:
+            from core import cloudinary_storage
+            if cloudinary_storage.enabled():
+                providers.append(("Cloudinary", cloudinary_storage))
+        except Exception:
+            pass
         if not providers:
             return {"uploaded": 0, "configured": False, "provider": "local files (temporary on Vercel)"}
 

@@ -83,7 +83,7 @@ if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 def _serve_cloud_file(object_key: str, default_media_type: str):
-    for mod_name in ("core.firebase_storage", "core.r2_storage"):
+    for mod_name in ("core.firebase_storage", "core.r2_storage", "core.cloudinary_storage"):
         try:
             mod = __import__(mod_name, fromlist=["enabled", "get_file"])
             if not mod.enabled():
@@ -236,12 +236,18 @@ async def get_overview():
     except Exception:
         fb = {"configured": False, "provider": "Firebase Storage"}
     r2 = r2_health()
-    if fb.get("configured"):
-        file_store = fb
-        if r2.get("configured"):
-            file_store = {**fb, "provider": "Firebase Storage + Cloudflare R2"}
+    try:
+        from core.cloudinary_storage import health as cl_health
+        cl = cl_health()
+    except Exception:
+        cl = {"configured": False, "provider": "Cloudinary"}
+    providers = [p for p in [fb if fb.get("configured") else None, r2 if r2.get("configured") else None, cl if cl.get("configured") else None] if p]
+    if providers:
+        file_store = providers[0].copy()
+        if len(providers) > 1:
+            file_store["provider"] = " + ".join([p.get("provider", "storage") for p in providers])
     else:
-        file_store = r2
+        file_store = r2 if r2.get("provider") else {"configured": False, "provider": "local files (temporary on Vercel)"}
     return {
         "status": "online",
         "system_time": __import__("datetime").datetime.now().astimezone().isoformat(timespec="seconds"),
