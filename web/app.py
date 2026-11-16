@@ -50,9 +50,18 @@ app.add_middleware(
 async def require_admin_token(request: Request, call_next):
     """Protect API endpoints when a deployment admin token is configured."""
     from core.config import Config as AppConfig
-    if request.url.path == "/api/auth/status":
+    path = request.url.path
+    if path == "/api/auth/status":
         return await call_next(request)
-    if AppConfig.APP_ADMIN_TOKEN and request.url.path.startswith("/api/"):
+    # Allow direct media fetches (img/audio/video tags cannot attach auth headers).
+    if request.method == "GET" and (
+        path.startswith("/api/thumbnail/")
+        or path.startswith("/api/audio/")
+        or path.startswith("/api/video/")
+        or path.startswith("/api/scene-frame/")
+    ):
+        return await call_next(request)
+    if AppConfig.APP_ADMIN_TOKEN and path.startswith("/api/"):
         supplied = request.headers.get("authorization", "")
         if not supplied.startswith("Bearer ") or not __import__("hmac").compare_digest(
             supplied[7:], AppConfig.APP_ADMIN_TOKEN
@@ -537,7 +546,10 @@ def generate_voiceover_endpoint(payload: Dict[str, Any] = Body(...)):
             text_to_speak = " ".join([s.get("voiceover", "") for s in scenes if s.get("voiceover")])
 
     if not text_to_speak:
-        raise HTTPException(status_code=400, detail="No voiceover text found or provided.")
+        raise HTTPException(
+            status_code=400,
+            detail=f"لم يتم العثور على نص للتعليق الصوتي للفكرة {idea_id}. تأكد من إنتاج الحزمة أولًا (السكريبت/المشاهد) أو أرسل نصًا مخصصًا."
+        )
 
     try:
         ideas = idea_engine.get_all_ideas()

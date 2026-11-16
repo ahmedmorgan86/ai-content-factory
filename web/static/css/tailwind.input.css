@@ -4,6 +4,9 @@
 @source "../js/**/*.js";
 
 @theme {
+    --font-sans: "Cairo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
     --color-slate-850: #151f32;
     --color-slate-950: #070d18;
+    --color-brand-500: #6366f1;
+    --color-brand-600: #4f46e5;
 }
