@@ -602,7 +602,7 @@ async def approve_and_dispatch(payload: Dict[str, Any] = Body(...)):
     )
 
     if approved:
-        idea_engine.update_idea_status(idea_id, "Approved / Scheduled")
+        idea_engine.update_idea_status(idea_id, "Approved / Ready for Manual Publishing")
 
     return res
 

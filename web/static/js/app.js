@@ -404,7 +404,7 @@ function renderStudioPackage(data) {
                 <div class="flex flex-wrap items-center gap-3">
                     <button type="button" data-action="approve" data-idea-id="${escapeHtml(data.idea_id)}" class="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-lg transition flex items-center space-x-2 space-x-reverse">
                         <i class="fa-solid fa-circle-check"></i>
-                        <span>اعتماد وجدولة النشر</span>
+                        <span>اعتماد وتجهيز ملفات النشر</span>
                     </button>
                     <button type="button" data-action="produce" data-idea-id="${escapeHtml(data.idea_id)}" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs border border-slate-700 transition flex items-center space-x-2 space-x-reverse">
                         <i class="fa-solid fa-rotate"></i>
@@ -575,7 +575,7 @@ function renderStudioPackage(data) {
                             </button>
                         </div>
                         <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800 text-slate-200 text-sm leading-relaxed whitespace-pre-wrap max-h-60 overflow-y-auto" id="script-text-content">
-${data.script_markdown}
+${escapeHtml(data.script_markdown)}
                         </div>
                     </div>
 
@@ -671,13 +671,13 @@ ${data.script_markdown}
                         <div class="flex items-center justify-between">
                             <span class="text-xs font-bold text-slate-200"><i class="fa-brands fa-youtube text-rose-500 ml-1"></i>صورة يوتيوب (16:9)</span>
                             <span class="text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30">
-                                1280×720 (Real AI Art)
+                                1280×720 (صورة مصغّرة)
                             </span>
                         </div>
                         ${thumbs.youtube_url ? `
                             <div class="relative group rounded-xl overflow-hidden border border-slate-700 shadow-md">
-                                <img src="${thumbs.youtube_url}?t=${Date.now()}" alt="YouTube Thumbnail" class="w-full h-auto object-cover transition duration-300 group-hover:scale-105">
-                                <a href="${thumbs.youtube_url}" target="_blank" class="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition">
+                                <img src="${escapeHtml(thumbs.youtube_url)}?t=${Date.now()}" alt="YouTube Thumbnail" class="w-full h-auto object-cover transition duration-300 group-hover:scale-105">
+                                <a href="${escapeHtml(thumbs.youtube_url)}" target="_blank" rel="noopener noreferrer" class="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition">
                                     <i class="fa-solid fa-arrow-up-right-from-square ml-1"></i> فتح بالحجم الكامل
                                 </a>
                             </div>
@@ -689,13 +689,13 @@ ${data.script_markdown}
                         <div class="flex items-center justify-between">
                             <span class="text-xs font-bold text-slate-200"><i class="fa-brands fa-tiktok text-cyan-400 ml-1"></i>غلاف ريلز وشورتس (9:16)</span>
                             <span class="text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30">
-                                1080×1920 (Real AI Art)
+                                1080×1920 (غلاف رأسي)
                             </span>
                         </div>
                         ${thumbs.vertical_url ? `
                             <div class="relative group rounded-xl overflow-hidden border border-slate-700 shadow-md max-w-[200px] mx-auto">
-                                <img src="${thumbs.vertical_url}?t=${Date.now()}" alt="Vertical Shorts Cover" class="w-full h-auto object-cover transition duration-300 group-hover:scale-105">
-                                <a href="${thumbs.vertical_url}" target="_blank" class="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition">
+                                <img src="${escapeHtml(thumbs.vertical_url)}?t=${Date.now()}" alt="Vertical Shorts Cover" class="w-full h-auto object-cover transition duration-300 group-hover:scale-105">
+                                <a href="${escapeHtml(thumbs.vertical_url)}" target="_blank" rel="noopener noreferrer" class="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition">
                                     <i class="fa-solid fa-arrow-up-right-from-square ml-1"></i> فتح بالحجم الكامل
                                 </a>
                             </div>
@@ -848,7 +848,7 @@ async function triggerVideoRender(ideaId) {
             throw new Error(detail);
         }
         const data = await res.json();
-        showToast('🎉 تم رندر وتجميع الفيديو النهائي بنجاح وجاهز للنشر!', 'success');
+        showToast('تم تركيب ملف المعاينة بنجاح. راجعه وأكمل النشر يدويًا من المنصة.', 'success');
         await openStudio(ideaId);
     } catch (err) {
         showToast(`فشل رندر الفيديو: ${err.message}`, 'error');

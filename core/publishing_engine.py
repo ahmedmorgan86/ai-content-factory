@@ -30,7 +30,7 @@ class PublishingEngine:
         platforms_payload = [
             {
                 "platform": "YouTube",
-                "mode": "API Scheduled / Draft",
+                "mode": "Manual upload / Draft",
                 "title": seo_data.get("recommended_best_title", title)[:100],
                 "description": seo_data.get("youtube_description", ""),
                 "tags": seo_data.get("tags_20", []),
@@ -40,7 +40,7 @@ class PublishingEngine:
             },
             {
                 "platform": "YouTube Shorts",
-                "mode": "API Scheduled / Draft",
+                "mode": "Manual upload / Draft",
                 "title": seo_data.get("recommended_best_title", title)[:90] + " #Shorts",
                 "description": seo_data.get("short_description_reels_tiktok", ""),
                 "tags": seo_data.get("tags_20", []),
@@ -50,7 +50,7 @@ class PublishingEngine:
             },
             {
                 "platform": "TikTok",
-                "mode": "Official Content Posting API / Manual Packager",
+                "mode": "Manual upload / Content packager",
                 "caption": seo_data.get("short_description_reels_tiktok", "")[:150],
                 "hashtags": seo_data.get("hashtags_5", []),
                 "cover_image": thumb_data.get("vertical_path", ""),
@@ -58,7 +58,7 @@ class PublishingEngine:
             },
             {
                 "platform": "Instagram Reels",
-                "mode": "Instagram Graph API / Manual Packager",
+                "mode": "Manual upload / Content packager",
                 "caption": seo_data.get("short_description_reels_tiktok", ""),
                 "hashtags": seo_data.get("hashtags_5", []),
                 "cover_image": thumb_data.get("vertical_path", ""),
@@ -66,7 +66,7 @@ class PublishingEngine:
             },
             {
                 "platform": "Facebook Reels",
-                "mode": "Meta Pages API / Manual Packager",
+                "mode": "Manual upload / Content packager",
                 "caption": seo_data.get("short_description_reels_tiktok", ""),
                 "hashtags": seo_data.get("hashtags_5", []),
                 "cover_image": thumb_data.get("vertical_path", ""),
@@ -77,7 +77,7 @@ class PublishingEngine:
         # Record to Publishing.csv
         file_exists = self.publishing_csv.exists()
         headers = [
-            "Publish ID", "Idea ID", "Video Title", "Platform", "Scheduled Date", 
+            "Publish ID", "Idea ID", "Video Title", "Platform", "Prepared Date", 
             "Published Date", "Post URL", "Publishing Mode", "User Approval Status", 
             "Execution Log", "Last Status Check"
         ]
@@ -97,7 +97,7 @@ class PublishingEngine:
                     "-",
                     "-",
                     p["mode"],
-                    "Approved by Admin",
+                    "Approved for manual publishing",
                     "Payload prepared and validated",
                     now_str
                 ])
