@@ -749,7 +749,10 @@ async def update_integration_keys(payload: Dict[str, Any] = Body(...)):
     Config.GOOGLE_USE_IMAGEN = os.getenv("GOOGLE_USE_IMAGEN", "false").lower() == "true"
     Config.GOOGLE_TTS_MODEL = os.getenv("GOOGLE_TTS_MODEL", Config.GOOGLE_TTS_MODEL)
     Config.GOOGLE_IMAGE_MODEL = os.getenv("GOOGLE_IMAGE_MODEL", Config.GOOGLE_IMAGE_MODEL)
-    return {"success": True, "status": await integrations_status()}
+    status = await integrations_status()
+    if IS_VERCEL:
+        status["warning"] = "على Vercel الحفظ في .env غير دائم؛ أضف المفاتيح في Environment Variables وأعد النشر."
+    return {"success": True, "status": status}
 
 
 @app.post("/api/pipeline/run-full-cycle")
@@ -784,7 +787,7 @@ async def run_full_automation_cycle():
         raise
     except Exception as e:
         print(f"Full production cycle failed: {type(e).__name__}: {e}")
-        raise HTTPException(status_code=500, detail="فشلت دورة الإنتاج. راجع سجل الخادم لمعرفة المرحلة المتسببة.")
+        raise HTTPException(status_code=500, detail=f"فشلت دورة الإنتاج: {e}")
 
 
 if __name__ == "__main__":
