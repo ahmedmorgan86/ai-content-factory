@@ -97,7 +97,7 @@ class VideoEngine:
 
         return img
 
-    def render_video_for_idea(self, idea_id, script_data=None, voice_key="shakir", is_vertical=True, fps=24):
+    def render_video_for_idea(self, idea_id, script_data=None, voice_key="shakir", is_vertical=True, fps=24, video_type=None):
         """
         End-to-End Video Production Pipeline:
         1. Ensures Egyptian Arabic audio voiceover exists (or generates it).
@@ -137,15 +137,16 @@ class VideoEngine:
         full_voiceover = script_data.get("full_voiceover", "")
 
         # 2. Ensure voiceover audio exists
-        existing_audios = list(audio_dir.glob(f"voiceover_{idea_id}_*.mp3"))
-        if existing_audios:
-            audio_path = existing_audios[0]
-        else:
+        voice_type = video_type or ("Short-form" if is_vertical else "Long-form")
+        extension = "wav" if voice_key.startswith("google_") else "mp3"
+        audio_path = audio_dir / f"voiceover_{idea_id}_{voice_key}.{extension}"
+        if not audio_path.exists():
             voice_res = self.voice_engine.generate_voiceover(
                 idea_id=idea_id,
                 text=full_voiceover,
                 voice_key=voice_key,
-                output_dir=audio_dir
+                output_dir=audio_dir,
+                video_type=voice_type
             )
             audio_path = Path(voice_res["file_path"])
 

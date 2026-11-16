@@ -5,11 +5,13 @@ Produces authentic Egyptian Arabic voiceovers (اللهجة المصرية) usin
 and Google Gemini Audio API.
 """
 
-import os
 import csv
 import json
 import asyncio
 import datetime
+import io
+import re
+import struct
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from core.config import Config, DB_DIR, STORAGE_ROOT
@@ -28,7 +30,18 @@ VOICE_PROFILES = {
         "gender": "Female",
         "dialect": "Egyptian Arabic",
         "description": "صوت مصري طبيعي ونشيط، ممتاز للريلز والشورتس السريعة"
-    }
+    },
+    "google_kore": {"id": "Kore", "name": "Kore (Google Gemini - أنثى)", "gender": "Female", "dialect": "Multilingual / Egyptian Arabic", "description": "صوت Google Gemini قابل لتوجيه اللهجة المصرية والأسلوب"},
+    "google_puck": {"id": "Puck", "name": "Puck (Google Gemini - ذكر)", "gender": "Male", "dialect": "Multilingual / Egyptian Arabic", "description": "صوت Google Gemini حيوي للفيديوهات القصيرة"},
+    "google_charon": {"id": "Charon", "name": "Charon (Google Gemini - عميق)", "gender": "Male", "dialect": "Multilingual / Egyptian Arabic", "description": "صوت Google Gemini عميق للفيديوهات الطويلة والوثائقية"},
+    "google_fenrir": {"id": "Fenrir", "name": "Fenrir (Google Gemini - قوي)", "gender": "Male", "dialect": "Multilingual / Egyptian Arabic", "description": "صوت Google Gemini قوي للإلقاء الحماسي"},
+    "google_zephyr": {"id": "Zephyr", "name": "Zephyr (Google Gemini - هادئ)", "gender": "Female", "dialect": "Multilingual / Egyptian Arabic", "description": "صوت Google Gemini هادئ وطبيعي"},
+}
+
+GOOGLE_VOICES = {"google_kore", "google_puck", "google_charon", "google_fenrir", "google_zephyr"}
+VOICE_STYLES = {
+    "Short-form": "Energetic, friendly Egyptian Arabic creator delivery, lively pacing, clear punchy emphasis, natural Cairo dialect.",
+    "Long-form": "Warm, confident Egyptian Arabic documentary educator narration, measured pacing, clear articulation, natural Cairo dialect.",
 }
 
 class VoiceEngine:
@@ -45,7 +58,75 @@ class VoiceEngine:
         communicate = edge_tts.Communicate(text, voice_id, rate=rate, pitch=pitch)
         await communicate.save(str(output_path))
 
-    def generate_voiceover(self, idea_id, text, voice_key="shakir", output_dir=None, rate="+0%"):
+    @staticmethod
+    def _pcm_to_wav(pcm, sample_rate=24000, channels=1, sample_width=2):
+        byte_rate = sample_rate * channels * sample_width
+        block_align = channels * sample_width
+        return (b"RIFF" + struct.pack("<I", 36 + len(pcm)) + b"WAVEfmt " +
+                struct.pack("<IHHIIHH", 16, 1, channels, sample_rate, byte_rate, block_align, sample_width * 8) +
+                b"data" + struct.pack("<I", len(pcm)) + pcm)
+
+    @staticmethod
+    def _clean_tts_text(text):
+        text = re.sub(r"<[^>]+>|\|(yeah|mhm)\|", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"[*_#`]+", "", text)
+        return re.sub(r"\s+", " ", text).strip()
+
+    def _synthesize_gemini(self, text, voice_key, video_type, output_path):
+        if not Config.GEMINI_API_KEY:
+            raise RuntimeError("Google Gemini is selected but GEMINI_API_KEY is not configured.")
+        from google import genai
+        from google.genai import types
+
+        voice_info = VOICE_PROFILES[voice_key]
+        style = VOICE_STYLES.get(video_type, VOICE_STYLES["Short-form"])
+        cleaned_text = self._clean_tts_text(text)
+        paragraphs = [p.strip() for p in re.split(r"(?<=[.!?؟])\s+|\n+", cleaned_text) if p.strip()]
+        chunks, current = [], ""
+        for paragraph in paragraphs:
+            if len(paragraph) > 2400:
+                if current:
+                    chunks.append(current)
+                    current = ""
+                chunks.extend(paragraph[i:i + 2400] for i in range(0, len(paragraph), 2400))
+            elif current and len(current) + len(paragraph) + 1 > 2400:
+                chunks.append(current)
+                current = paragraph
+            else:
+                current = f"{current} {paragraph}".strip()
+        if current:
+            chunks.append(current)
+        chunks = chunks or [cleaned_text]
+        client = genai.Client(api_key=Config.GEMINI_API_KEY)
+        pcm_chunks = []
+        for chunk in chunks:
+            prompt = f"{style} Perform this Egyptian Arabic script exactly as written. Do not translate, summarize, or add words: {chunk}"
+            audio_directive = f"Performance direction: {style}. Speak in natural Egyptian Arabic. Recite the script verbatim, with no translation, summary, or additions. Script: {chunk}"
+            response = client.models.generate_content(
+                model=Config.GOOGLE_TTS_MODEL,
+                contents=audio_directive,
+                config=types.GenerateContentConfig(
+                    response_modalities=["AUDIO"],
+                    speech_config=types.SpeechConfig(
+                        voice_config=types.VoiceConfig(
+                            prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=voice_info["id"])
+                        )
+                    ),
+                ),
+            )
+            part = response.candidates[0].content.parts[0]
+            audio_bytes = part.inline_data.data
+            mime_type = (part.inline_data.mime_type or "audio/pcm").lower()
+            if isinstance(audio_bytes, str):
+                import base64
+                audio_bytes = base64.b64decode(audio_bytes)
+            pcm_chunks.append(audio_bytes[44:] if "wav" in mime_type and audio_bytes[:4] == b"RIFF" else audio_bytes)
+        if not pcm_chunks:
+            raise RuntimeError("Gemini returned no audio chunks.")
+        output_path.write_bytes(self._pcm_to_wav(b"".join(pcm_chunks)))
+        return "wav"
+
+    def generate_voiceover(self, idea_id, text, voice_key="shakir", output_dir=None, rate="+0%", video_type="Short-form"):
         """
         Synthesizes authentic Egyptian voiceover for a given script text.
         Saves the audio file as MP3 and records metadata in database/Audio.csv.
@@ -61,15 +142,20 @@ class VoiceEngine:
         voice_info = VOICE_PROFILES.get(voice_key, VOICE_PROFILES["shakir"])
         voice_id = voice_info["id"]
 
-        filename = f"voiceover_{idea_id}_{voice_key}.mp3"
+        use_google = voice_key in GOOGLE_VOICES
+        extension = "wav" if use_google else "mp3"
+        filename = f"voiceover_{idea_id}_{voice_key}.{extension}"
         output_path = output_dir / filename
 
         # Run edge-tts synthesis safely across sync and async contexts
         try:
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                executor.submit(
-                    lambda: asyncio.run(self._synthesize_edge_tts(text, voice_id, output_path, rate=rate))
-                ).result()
+            if use_google:
+                extension = self._synthesize_gemini(text, voice_key, video_type, output_path)
+            else:
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    executor.submit(
+                        lambda: asyncio.run(self._synthesize_edge_tts(text, voice_id, output_path, rate=rate))
+                    ).result()
         except Exception as e:
             raise RuntimeError(f"Audio synthesis failed: {e}")
 
@@ -109,6 +195,8 @@ class VoiceEngine:
             "audio_id": audio_id,
             "idea_id": idea_id,
             "voice": voice_info,
+            "provider": "Google Gemini TTS" if use_google else "Edge TTS",
+            "format": extension.upper(),
             "file_path": str(output_path),
             "filename": filename,
             "file_size": audio_size,

@@ -54,6 +54,12 @@ except OSError:
 class Config:
     # Security Credentials (Loaded from Environment)
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+    GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT", "")
+    GOOGLE_CLOUD_LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+    GOOGLE_TTS_MODEL = os.getenv("GOOGLE_TTS_MODEL", "gemini-2.5-flash-preview-tts")
+    GOOGLE_IMAGE_MODEL = os.getenv("GOOGLE_IMAGE_MODEL", "")
+    GOOGLE_USE_IMAGEN = os.getenv("GOOGLE_USE_IMAGEN", "false").lower() == "true"
     TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
     TELEGRAM_ADMIN_CHAT_ID = os.getenv("TELEGRAM_ADMIN_CHAT_ID", "")
     CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME", "")
