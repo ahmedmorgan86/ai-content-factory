@@ -422,12 +422,6 @@ def generate_production_package(payload: Dict[str, Any] = Body(...)):
     if not selected_idea:
         raise HTTPException(status_code=404, detail=f"Idea {idea_id} not found in database")
 
-    if not Config.GEMINI_API_KEY:
-        raise HTTPException(
-            status_code=503,
-            detail="خدمة التعليق الصوتي غير مهيأة: أضف GEMINI_API_KEY إلى متغيرات Vercel ثم أعد النشر.",
-        )
-
     # Map database row format to engine format
     idea_dict = {
         "idea_id": selected_idea.get("Idea ID") or selected_idea.get("idea_id"),
@@ -440,6 +434,11 @@ def generate_production_package(payload: Dict[str, Any] = Body(...)):
         "estimated_duration": selected_idea.get("Estimated Duration") or selected_idea.get("estimated_duration", "60 ثانية"),
         "seo_keywords": [k.strip() for k in (selected_idea.get("SEO Keywords") or ", ".join(selected_idea.get("seo_keywords", []))).split(",") if k.strip()]
     }
+
+    def _default_voice_key(video_type: str) -> str:
+        if Config.GEMINI_API_KEY:
+            return "google_puck" if "Short" in (video_type or "") else "google_charon"
+        return "salma" if "Short" in (video_type or "") else "shakir"
 
     stage = "السكريبت"
     try:
@@ -472,15 +471,24 @@ def generate_production_package(payload: Dict[str, Any] = Body(...)):
             idea_id, idea_dict["video_title"], seo_pkg, thumb_res, approved=False
         )
 
-        # 6. Generate video-type matched Egyptian Arabic voiceover with Google Gemini TTS.
-        stage = "التعليق الصوتي من Google Gemini"
-        voice_key = "google_puck" if idea_dict["video_type"] == "Short-form" else "google_charon"
+        # 6. Generate voiceover (Google Gemini when available, else Edge TTS fallback).
+        voice_key = _default_voice_key(idea_dict["video_type"])
+        stage = "التعليق الصوتي"
         voice_res = voice_engine.generate_voiceover(
             idea_id=idea_id,
             text=script_to_use["full_voiceover"],
             voice_key=voice_key,
             video_type=idea_dict["video_type"]
         )
+        voice_key = (voice_res or {}).get("voice", {}).get("id") and voice_key
+        # Prefer actual produced voice key/filename context for rendering
+        produced_voice_key = payload.get("voice_key") or voice_key
+        if voice_res and voice_res.get("voice"):
+            # map provider output back to requested/fallback key for render lookup
+            for k, v in voice_engine.get_available_voices().items():
+                if v.get("id") == voice_res["voice"].get("id"):
+                    produced_voice_key = k
+                    break
 
         # 7. Render Ready-to-Publish Video (Shorts 9:16 or Long 16:9)
         stage = "تركيب الفيديو"
@@ -489,7 +497,7 @@ def generate_production_package(payload: Dict[str, Any] = Body(...)):
             video_res = video_engine.render_video_for_idea(
                 idea_id=idea_id,
                 script_data=script_to_use,
-                voice_key=voice_key,
+                voice_key=produced_voice_key,
                 is_vertical=("Short" in idea_dict["video_type"]),
                 video_type=idea_dict["video_type"]
             )
@@ -519,11 +527,9 @@ def generate_production_package(payload: Dict[str, Any] = Body(...)):
         raise
     except Exception as e:
         print(f"Production generation failed for {idea_id} during {stage}: {type(e).__name__}: {e}")
-        status_code = 502 if stage == "التعليق الصوتي من Google Gemini" else 500
-        raise HTTPException(
-            status_code=status_code,
-            detail=f"فشل الإنتاج في مرحلة {stage}. راجع إعدادات الخدمة أو سجل الخادم للتفاصيل.",
-        )
+        detail = f"فشل الإنتاج في مرحلة {stage}: {e}"
+        status_code = 502 if stage == "التعليق الصوتي" else 500
+        raise HTTPException(status_code=status_code, detail=detail)
 
 
 @app.post("/api/voice/generate")
@@ -559,8 +565,8 @@ def generate_voiceover_endpoint(payload: Dict[str, Any] = Body(...)):
         return {"success": True, "audio": res}
     except Exception as e:
         message = str(e)
-        status_code = 503 if "GEMINI_API_KEY is not configured" in message else 500
-        raise HTTPException(status_code=status_code, detail=f"Voice synthesis failed: {message}")
+        status_code = 503 if ("GEMINI_API_KEY" in message and not Config.GEMINI_API_KEY) else 500
+        raise HTTPException(status_code=status_code, detail=f"فشل توليد التعليق الصوتي: {message}")
 
 
 @app.post("/api/video/render")
@@ -712,11 +718,6 @@ async def update_settings(payload: Dict[str, str] = Body(...)):
 @app.post("/api/pipeline/run-full-cycle")
 async def run_full_automation_cycle():
     """Executes a full end-to-end automation test cycle."""
-    if not Config.GEMINI_API_KEY:
-        raise HTTPException(
-            status_code=503,
-            detail="دورة الإنتاج متوقفة: أضف GEMINI_API_KEY إلى متغيرات Vercel ثم أعد النشر.",
-        )
     try:
         # 1. Generate or fetch top idea
         ideas = idea_engine.get_all_ideas()
