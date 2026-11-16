@@ -51,6 +51,16 @@ class Config:
     CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET", "")
     TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
     YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "")
+    # Firestore is an optional durable metadata store. Local development keeps
+    # the CSV adapter until credentials are explicitly configured.
+    FIRESTORE_PROJECT_ID = os.getenv("FIRESTORE_PROJECT_ID", "")
+    FIREBASE_SERVICE_ACCOUNT_JSON = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON", "")
+    R2_ACCOUNT_ID = os.getenv("R2_ACCOUNT_ID", "")
+    R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID", "")
+    R2_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY", "")
+    R2_BUCKET = os.getenv("R2_BUCKET", "")
+    R2_PUBLIC_BASE_URL = os.getenv("R2_PUBLIC_BASE_URL", "")
+    APP_ADMIN_TOKEN = os.getenv("APP_ADMIN_TOKEN", "")
     
     # Defaults
     NICHE = "Technology & Artificial Intelligence"
@@ -58,8 +68,8 @@ class Config:
     COUNTRY = "Egypt / Arab World"
     IDEAS_PER_BATCH = 20
     CONTENT_STYLE = "Educational, Engaging, Professional, Conversational"
-    BRAND_COLORS = ["#0F172A", "#38BDF8", "#818CF8"]
-    BRAND_IDENTITY = "Future Tech Navigator"
+    BRAND_COLORS = ["#30483A", "#B75E43", "#D7BD7A"]
+    BRAND_IDENTITY = "مِداد"
     
     @classmethod
     def load_from_settings_csv(cls):

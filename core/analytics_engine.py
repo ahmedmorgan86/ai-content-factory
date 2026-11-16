@@ -135,26 +135,14 @@ class AnalyticsEngine:
                 platform = vid.get("Platform", "YouTube")
                 views = int(float(vid.get("Views", 0) or 0))
                 ctr = vid.get("CTR (%)", "0")
-                score = vid.get("AI Performance Score", "8.5/10")
+                score = vid.get("AI Performance Score", "—")
                 top_videos_lines.append(
                     f"{idx}. <i>'{title}'</i> ({platform})\n"
                     f"   👁️ <b>{views:,}</b> مشاهدة | 🎯 CTR: <b>{ctr}%</b> | ⭐ تقييم: <b>{score}</b>"
                 )
             top_videos_formatted = "\n".join(top_videos_lines)
         else:
-            total_views = 124500
-            total_likes = 9900
-            total_comments = 610
-            total_shares = 2350
-            total_watch_time = 312000
-            total_subs = 1840
-            avg_ctr = 11.2
-            top_videos_formatted = (
-                "1. <i>'إزاي تبني AI Agent يشتغل بدالك 24 ساعة؟'</i> (YouTube)\n"
-                "   👁️ <b>48,000</b> مشاهدة | 🎯 CTR: <b>12.8%</b> | ⭐ تقييم: <b>9.12/10</b>\n"
-                "2. <i>'أقوى 3 أدوات ذكاء اصطناعي نزلت الأسبوع ده'</i> (YouTube Shorts / Reels)\n"
-                "   👁️ <b>76,500</b> مشاهدة | 🎯 CTR: <b>10.5%</b> | ⭐ تقييم: <b>9.38/10</b>"
-            )
+            return "لا توجد بيانات أداء فعلية حتى الآن. أضف سجلات من مصدر موثوق لعرض التقرير الأسبوعي."
 
         hours_watch_time = total_watch_time // 60 if total_watch_time >= 60 else total_watch_time
 
@@ -163,19 +151,12 @@ class AnalyticsEngine:
             "📈 <b>أرقام الأسبوع الإجمالية:</b>\n"
             f"• إجمالي المشاهدات: <b>{total_views:,}</b> مشاهدة\n"
             f"• إجمالي وقت المشاهدة: <b>{total_watch_time:,}</b> دقيقة (~{hours_watch_time:,} ساعة)\n"
-            f"• متوسط نسبة النقر للظهور (CTR): <b>{avg_ctr}%</b> (أعلى من المعدل العام بنسبة +35%)\n"
+            f"• متوسط نسبة النقر للظهور (CTR): <b>{avg_ctr}%</b>\n"
             f"• المشتركون الجدد: <b>+{total_subs:,}</b> مشترك\n"
             f"• إجمالي التفاعل: <b>{total_likes:,}</b> إعجاب | <b>{total_comments:,}</b> تعليق | <b>{total_shares:,}</b> مشاركة\n\n"
             "🏆 <b>أفضل الفيديوهات أداءً هذا الأسبوع:</b>\n"
             f"{top_videos_formatted}\n\n"
-            "💡 <b>أهم التوصيات والدروس المستفادة (Data Insights):</b>\n"
-            "• <b>قوة الخطاف (Hook Impact):</b> الفيديوهات التي تضمنت في أول 3 ثوانٍ كلمات حاسمة ('ببلاش'، 'أتمتة'، '2026') رفعت نسبة الاحتفاظ بالجمهور في أول 30 ثانية إلى 74%.\n"
-            "• <b>المحتوى التطبيقي يكسب:</b> الفيديوهات العملية خطوة بخطوة (Step-by-step) حققت ضعف زمن المشاهدة (Watch Time) مقارنة بالفيديوهات النظرية الاستعراضية.\n"
-            "• <b>فرصة إعادة تدوير المحتوى (Repurposing Opportunity):</b> يمكن اقتطاع الدقيقة 04:15 من الفيديو الطويل وتحويلها إلى شورتس مستقل فائق القيمة، مما يحقق 40K+ مشاهدة إضافية بدون تكلفة إنتاج جديدة.\n\n"
-            "🚀 <b>خطة الأسبوع القادم:</b>\n"
-            "1. التركيز على أدوات وكلاء الذكاء الاصطناعي مفتوحة المصدر (Open Source AI Agents).\n"
-            "2. إنتاج فيديوهات مقارنة مباشرة بين البدائل المجانية والأدوات المدفوعة.\n"
-            "3. جدولة 4 مقاطع شورتس سريعة لتعزيز وتيرة جذب المشتركين الجدد."
+            "💡 <b>ملحوظة:</b> المؤشرات محسوبة من السجلات المسجلة فقط. اربط مصدر التحليلات لتوسيع التقرير."
         )
 
         # Save to markdown files for persistent access

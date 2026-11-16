@@ -16,14 +16,52 @@ const state = {
     chartInstance: null
 };
 
+function apiFetch(input, init = {}) {
+    const headers = new Headers(init.headers || {});
+    const token = sessionStorage.getItem('medad_admin_token');
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    return fetch(input, { ...init, headers });
+}
+
 // DOM Ready
 document.addEventListener('DOMContentLoaded', () => {
     initNavigation();
-    loadOverview();
-    loadIdeas();
-    loadAnalytics();
-    loadSettings();
+    const savedToken = sessionStorage.getItem('medad_admin_token');
+    const panel = document.getElementById('admin-access-panel');
+    const beginApp = () => {
+        panel?.classList.add('hidden');
+        loadOverview(); loadIdeas(); loadAnalytics(); loadSettings();
+    };
+    apiFetch('/api/auth/status').then(response => response.json()).then(({ required }) => {
+        if (!required) beginApp();
+        else if (savedToken) {
+            apiFetch('/api/settings').then(response => {
+                if (response.ok) beginApp();
+                else { sessionStorage.removeItem('medad_admin_token'); panel?.classList.remove('hidden'); }
+            }).catch(() => panel?.classList.remove('hidden'));
+        } else panel?.classList.remove('hidden');
+    }).catch(() => panel?.classList.remove('hidden'));
+    document.getElementById('admin-access-submit')?.addEventListener('click', async () => {
+        const field = document.getElementById('admin-access-token');
+        const token = field?.value || '';
+        sessionStorage.setItem('medad_admin_token', token);
+        try {
+            const response = await apiFetch('/api/settings');
+            if (!response.ok) throw new Error('رمز الدخول غير صحيح');
+            field.value = '';
+            beginApp();
+        } catch (error) {
+            sessionStorage.removeItem('medad_admin_token');
+            showToast(error.message, 'error');
+        }
+    });
 });
+
+function escapeHtml(value) {
+    const element = document.createElement('span');
+    element.textContent = value == null ? '' : String(value);
+    return element.innerHTML;
+}
 
 // Toast Notifications
 function showToast(message, type = 'success') {
@@ -35,10 +73,12 @@ function showToast(message, type = 'success') {
     const icon = type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-triangle-exclamation' : 'fa-info-circle';
     
     toast.className = `glass-panel border px-4 py-3 rounded-xl flex items-center space-x-3 space-x-reverse text-sm shadow-xl toast-animate ${bg}`;
-    toast.innerHTML = `
-        <i class="fa-solid ${icon} text-lg"></i>
-        <span>${message}</span>
-    `;
+    const iconElement = document.createElement('i');
+    iconElement.className = `fa-solid ${icon} text-lg`;
+    iconElement.setAttribute('aria-hidden', 'true');
+    const messageElement = document.createElement('span');
+    messageElement.textContent = message;
+    toast.append(iconElement, messageElement);
     container.appendChild(toast);
     setTimeout(() => {
         toast.remove();
@@ -54,20 +94,76 @@ function initNavigation() {
             const target = tab.dataset.tab;
             switchTab(target);
         });
+        tab.addEventListener('keydown', (event) => {
+            const order = Array.from(tabs);
+            const index = order.indexOf(tab);
+            let nextIndex = index;
+            if (event.key === 'ArrowLeft') nextIndex = (index + 1) % order.length;
+            else if (event.key === 'ArrowRight') nextIndex = (index - 1 + order.length) % order.length;
+            else if (event.key === 'Home') nextIndex = 0;
+            else if (event.key === 'End') nextIndex = order.length - 1;
+            else return;
+            event.preventDefault();
+            order[nextIndex].focus();
+            switchTab(order[nextIndex].dataset.tab);
+        });
+        tab.tabIndex = tab.getAttribute('aria-selected') === 'true' ? 0 : -1;
     });
+
+    document.addEventListener('click', async (event) => {
+        const openButton = event.target.closest('[data-open-idea]');
+        if (openButton) {
+            openStudio(openButton.dataset.openIdea);
+            return;
+        }
+        const actionButton = event.target.closest('[data-action][data-idea-id]');
+        if (actionButton) {
+            const { action, ideaId } = actionButton.dataset;
+            if (action === 'produce') runProductionForSelected(ideaId);
+            else if (action === 'approve') approvePublishing(ideaId);
+            else if (action === 'render') triggerVideoRender(ideaId);
+            else if (action === 'voice') triggerVoiceover(ideaId);
+            return;
+        }
+        const copyButton = event.target.closest('[data-copy-text]');
+        if (copyButton) {
+            try {
+                await navigator.clipboard.writeText(copyButton.dataset.copyText || '');
+                showToast('تم النسخ.', 'success');
+            } catch (_) {
+                showToast('تعذر النسخ؛ تحقق من صلاحية الحافظة في المتصفح.', 'error');
+            }
+        }
+    });
+    document.addEventListener('keydown', (event) => {
+        const card = event.target.closest('[data-open-idea][role="button"]');
+        if (card && (event.key === 'Enter' || event.key === ' ')) {
+            event.preventDefault();
+            openStudio(card.dataset.openIdea);
+        }
+    });
+    switchTab('dashboard');
 }
 
 function switchTab(tabId) {
     state.currentTab = tabId;
     document.querySelectorAll('.tab-content').forEach(section => {
         section.classList.add('hidden');
+        section.setAttribute('aria-hidden', 'true');
     });
     const targetSection = document.getElementById(`tab-${tabId}`);
     if (targetSection) {
         targetSection.classList.remove('hidden');
+        targetSection.setAttribute('role', 'tabpanel');
+        targetSection.tabIndex = 0;
+        targetSection.setAttribute('aria-labelledby', `nav-tab-${tabId}`);
+        targetSection.setAttribute('aria-hidden', 'false');
     }
 
     document.querySelectorAll('.nav-tab').forEach(tab => {
+        const selected = tab.dataset.tab === tabId;
+        tab.setAttribute('aria-selected', String(selected));
+        tab.tabIndex = selected ? 0 : -1;
         if (tab.dataset.tab === tabId) {
             tab.classList.add('bg-sky-500/20', 'text-sky-400', 'border-sky-500/50');
             tab.classList.remove('text-slate-400', 'border-transparent');
@@ -85,17 +181,19 @@ function switchTab(tabId) {
 // API: Overview
 async function loadOverview() {
     try {
-        const res = await fetch('/api/overview');
+        const res = await apiFetch('/api/overview'); if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         state.overview = data;
         
         // Update KPI Cards
         document.getElementById('kpi-total-ideas').textContent = data.kpis.total_ideas;
         document.getElementById('kpi-ready-packages').textContent = data.kpis.ready_packages;
-        document.getElementById('kpi-total-views').textContent = data.kpis.total_views.toLocaleString();
-        document.getElementById('kpi-avg-ctr').textContent = data.kpis.avg_ctr + '%';
-        document.getElementById('kpi-subscribers').textContent = '+' + data.kpis.total_subscribers.toLocaleString();
-        document.getElementById('kpi-watch-hours').textContent = data.kpis.total_watch_hours.toLocaleString() + ' س';
+        document.getElementById('kpi-total-views').textContent = data.kpis.has_analytics ? data.kpis.total_views.toLocaleString() : '—';
+        document.getElementById('kpi-avg-ctr').textContent = data.kpis.has_analytics ? data.kpis.avg_ctr + '%' : '—';
+        document.getElementById('kpi-subscribers').textContent = data.kpis.has_analytics ? '+' + data.kpis.total_subscribers.toLocaleString() : '—';
+        document.getElementById('kpi-watch-hours').textContent = data.kpis.has_analytics ? data.kpis.total_watch_hours.toLocaleString() + ' س' : '—';
+        const healthEl = document.getElementById('data-health-summary');
+        if (healthEl) healthEl.textContent = `البيانات: ${data.data_store?.provider || 'غير محدد'} · الملفات: ${data.file_store?.provider || 'غير محدد'}`;
         
         // Update recent ideas in dashboard
         renderRecentIdeas(data.recent_ideas);
@@ -112,18 +210,18 @@ function renderRecentIdeas(recent) {
         return;
     }
     container.innerHTML = recent.slice(0, 5).map(i => `
-        <div class="p-3 rounded-xl bg-slate-800/50 border border-slate-700/60 flex items-center justify-between hover:border-sky-500/40 transition cursor-pointer" onclick="openStudio('${i['Idea ID']}')">
+        <div class="p-3 rounded-xl bg-slate-800/50 border border-slate-700/60 flex items-center justify-between hover:border-sky-500/40 transition cursor-pointer" data-open-idea="${escapeHtml(i['Idea ID'] || i.idea_id)}" role="button" tabindex="0">
             <div class="flex items-center space-x-3 space-x-reverse">
-                <span class="px-2 py-0.5 rounded text-xs font-bold ${i['Video Type'] === 'Long-form' ? 'bg-indigo-500/20 text-indigo-300' : 'bg-emerald-500/20 text-emerald-300'}">
-                    ${i['Video Type'] === 'Long-form' ? 'فيديو طويل' : 'شورتس'}
+                <span class="px-2 py-0.5 rounded text-xs font-bold ${(i['Video Type'] || i.video_type) === 'Long-form' ? 'bg-indigo-500/20 text-indigo-300' : 'bg-emerald-500/20 text-emerald-300'}">
+                    ${(i['Video Type'] || i.video_type) === 'Long-form' ? 'فيديو طويل' : 'شورتس'}
                 </span>
                 <div>
-                    <h4 class="text-sm font-semibold text-slate-200 line-clamp-1">${i['Video Title']}</h4>
-                    <p class="text-xs text-slate-400">الجمهور: ${i['Target Audience'] || 'الجميع'}</p>
+                    <h4 class="text-sm font-semibold text-slate-200 line-clamp-1">${escapeHtml(i['Video Title'] || i.video_title)}</h4>
+                    <p class="text-xs text-slate-400">الجمهور: ${escapeHtml(i['Target Audience'] || i.target_audience || 'الجميع')}</p>
                 </div>
             </div>
             <div class="flex items-center space-x-2 space-x-reverse">
-                <span class="text-xs font-bold text-amber-400"><i class="fa-solid fa-star text-[10px] ml-1"></i>${i['Priority Score'] || '9.5'}</span>
+                <span class="text-xs font-bold text-amber-400"><i class="fa-solid fa-star text-[10px] ml-1" aria-hidden="true"></i>${escapeHtml(i['Priority Score'] || i.priority_score || '—')}</span>
                 <button class="px-2.5 py-1 text-xs rounded-lg bg-sky-500/20 text-sky-400 hover:bg-sky-500/30">
                     استعراض <i class="fa-solid fa-arrow-left text-[10px] mr-1"></i>
                 </button>
@@ -135,9 +233,10 @@ function renderRecentIdeas(recent) {
 // API: Ideas Bank
 async function loadIdeas(filterType = 'all', searchQuery = '') {
     try {
-        let url = `/api/ideas?type=${filterType}`;
+        let url = `/api/ideas?type=${encodeURIComponent(filterType)}`;
         if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
-        const res = await fetch(url);
+        const res = await apiFetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         state.ideas = data.ideas;
         renderIdeasTable(data.ideas);
@@ -162,38 +261,38 @@ function renderIdeasTable(ideas) {
             <div>
                 <div class="flex items-center justify-between mb-3">
                     <div class="flex items-center space-x-2 space-x-reverse">
-                        <span class="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">${item['Idea ID']}</span>
-                        <span class="px-2 py-0.5 rounded text-xs font-semibold ${item['Video Type'] === 'Long-form' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'}">
-                            ${item['Video Type'] === 'Long-form' ? '🎥 طويل (8-12 د)' : '⚡ شورتس (60 ث)'}
+                        <span class="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">${escapeHtml(item['Idea ID'] || item.idea_id)}</span>
+                        <span class="px-2 py-0.5 rounded text-xs font-semibold ${(item['Video Type'] || item.video_type) === 'Long-form' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'}">
+                            ${(item['Video Type'] || item.video_type) === 'Long-form' ? '🎥 طويل (8-12 د)' : '⚡ شورتس (60 ث)'}
                         </span>
                     </div>
                     <div class="flex items-center space-x-1 space-x-reverse bg-amber-500/10 text-amber-300 border border-amber-500/30 px-2.5 py-0.5 rounded-full text-xs font-bold">
                         <i class="fa-solid fa-star text-[10px]"></i>
-                        <span>${item['Priority Score'] || '9.5'} / 10</span>
+                        <span>${escapeHtml(item['Priority Score'] || item.priority_score || '—')} / 10</span>
                     </div>
                 </div>
 
-                <h3 class="font-bold text-base text-slate-100 mb-2 leading-snug">${item['Video Title']}</h3>
-                <p class="text-xs text-slate-400 line-clamp-2 mb-3 leading-relaxed">${item['Video Summary'] || ''}</p>
+                <h3 class="font-bold text-base text-slate-100 mb-2 leading-snug">${escapeHtml(item['Video Title'] || item.video_title)}</h3>
+                <p class="text-xs text-slate-400 line-clamp-2 mb-3 leading-relaxed">${escapeHtml(item['Video Summary'] || item.video_summary || '')}</p>
 
                 <div class="bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80 mb-3 text-xs">
                     <span class="text-sky-400 font-bold block mb-1">🎯 الخطاف (0-3 ثوانٍ):</span>
-                    <p class="text-slate-300 italic line-clamp-2">"${item['Hook'] || ''}"</p>
+                    <p class="text-slate-300 italic line-clamp-2">"${escapeHtml(item['Hook'] || item.hook || '')}"</p>
                 </div>
             </div>
 
             <div>
                 <div class="flex flex-wrap gap-1.5 mb-4">
-                    ${(item['SEO Keywords'] || '').split(',').slice(0, 3).map(k => `
-                        <span class="text-[11px] px-2 py-0.5 rounded-md bg-slate-800/90 text-slate-400 border border-slate-700/80">#${k.trim()}</span>
+                    ${(item['SEO Keywords'] || (Array.isArray(item.seo_keywords) ? item.seo_keywords.join(', ') : item.seo_keywords) || '').split(',').slice(0, 3).map(k => `
+                        <span class="text-[11px] px-2 py-0.5 rounded-md bg-slate-800/90 text-slate-400 border border-slate-700/80">#${escapeHtml(k.trim())}</span>
                     `).join('')}
                 </div>
 
                 <div class="pt-3 border-t border-slate-800 flex items-center justify-between">
-                    <span class="text-xs ${item['Status'] === 'New' ? 'text-sky-400' : 'text-emerald-400'} font-semibold">
-                        <i class="fa-solid fa-circle text-[8px] ml-1"></i>${item['Status'] || 'New'}
+                    <span class="text-xs ${(item['Status'] || item.status) === 'New' ? 'text-sky-400' : 'text-emerald-400'} font-semibold">
+                        <i class="fa-solid fa-circle text-[8px] ml-1" aria-hidden="true"></i>${escapeHtml(item['Status'] || item.status || 'New')}
                     </span>
-                    <button onclick="openStudio('${item['Idea ID']}')" class="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-l from-sky-500 to-indigo-600 text-white hover:from-sky-400 hover:to-indigo-500 shadow-md transition flex items-center space-x-1.5 space-x-reverse">
+                    <button type="button" data-open-idea="${escapeHtml(item['Idea ID'] || item.idea_id)}" class="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-l from-sky-500 to-indigo-600 text-white hover:from-sky-400 hover:to-indigo-500 shadow-md transition flex items-center space-x-1.5 space-x-reverse">
                         <i class="fa-solid fa-wand-magic-sparkles"></i>
                         <span>إنتاج الحزمة</span>
                     </button>
@@ -210,7 +309,7 @@ async function triggerGenerateIdeas() {
     showToast('جاري توليد 20 فكرة جديدة وفحص التكرار عبر الذكاء الاصطناعي...', 'info');
 
     try {
-        const res = await fetch('/api/ideas/generate', { method: 'POST' });
+        const res = await apiFetch('/api/ideas/generate', { method: 'POST' });
         const data = await res.json();
         if (data.success) {
             showToast(`تم بنجاح توليد وحفظ ${data.saved_count} فكرة فريدة جديدة!`, 'success');
@@ -239,7 +338,7 @@ async function openStudio(ideaId) {
     `;
 
     try {
-        const res = await fetch(`/api/production/${ideaId}`);
+        const res = await apiFetch(`/api/production/${encodeURIComponent(ideaId)}`);
         if (!res.ok) {
             const errBody = await res.text();
             throw new Error(`خطأ (${res.status}): ${errBody || res.statusText}`);
@@ -248,7 +347,7 @@ async function openStudio(ideaId) {
         state.currentProduction = data;
         renderStudioPackage(data);
     } catch (err) {
-        container.innerHTML = `<div class="p-6 text-center text-rose-400">فشل في تحميل حزمة الإنتاج: ${err.message}</div>`;
+        container.innerHTML = `<div class="p-6 text-center text-rose-400">فشل في تحميل حزمة الإنتاج: ${escapeHtml(err.message)}</div>`;
     }
 }
 
@@ -262,10 +361,10 @@ function renderStudioPackage(data) {
                 <div class="w-16 h-16 rounded-full bg-sky-500/10 border border-sky-500/30 text-sky-400 flex items-center justify-center mx-auto mb-4 text-2xl">
                     <i class="fa-solid fa-film"></i>
                 </div>
-                <h3 class="text-xl font-bold text-white mb-2">${idea['Video Title'] || 'فكرة مختارة'}</h3>
-                <p class="text-slate-400 text-sm mb-6">${idea['Video Summary'] || 'هذه الفكرة جاهزة للتنفيذ التلقائي عبر الذكاء الاصطناعي.'}</p>
+                <h3 class="text-xl font-bold text-white mb-2">${escapeHtml(idea['Video Title'] || 'فكرة مختارة')}</h3>
+                <p class="text-slate-400 text-sm mb-6">${escapeHtml(idea['Video Summary'] || 'ابدأ إعداد عناصر الإنتاج لهذه الفكرة.')}</p>
                 <div class="flex items-center justify-center gap-3">
-                    <button onclick="runProductionForSelected('${data.idea_id}')" class="px-6 py-2.5 rounded-xl bg-gradient-to-l from-sky-500 to-indigo-600 text-white font-bold text-sm shadow-lg hover:from-sky-400 hover:to-indigo-500 transition flex items-center space-x-2 space-x-reverse">
+                    <button type="button" data-action="produce" data-idea-id="${escapeHtml(data.idea_id)}" class="px-6 py-2.5 rounded-xl bg-gradient-to-l from-sky-500 to-indigo-600 text-white font-bold text-sm shadow-lg hover:from-sky-400 hover:to-indigo-500 transition flex items-center space-x-2 space-x-reverse">
                         <i class="fa-solid fa-play"></i>
                         <span>بدء الإنتاج الكامل (سكريبت + SEO + صور + تخزين)</span>
                     </button>
@@ -289,25 +388,25 @@ function renderStudioPackage(data) {
             <div class="glass-panel p-6 rounded-2xl border border-sky-500/30 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <div class="flex items-center space-x-2 space-x-reverse mb-2">
-                        <span class="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-sky-400 border border-slate-700 font-bold">${data.idea_id}</span>
+                        <span class="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-sky-400 border border-slate-700 font-bold">${escapeHtml(data.idea_id)}</span>
                         <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                            <i class="fa-solid fa-check-double ml-1"></i>أصول الإنتاج جاهزة
+                            <i class="fa-solid fa-check-double ml-1"></i>حزمة الإنتاج محفوظة
                         </span>
                         ${video ? `
                             <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                                <i class="fa-solid fa-clapperboard ml-1"></i>الفيديو جاهز للنشر 🚀
+                                <i class="fa-solid fa-clapperboard ml-1"></i>ملف فيديو مجمّع · راجعه قبل الاستخدام
                             </span>
                         ` : ''}
-                        <span class="text-xs text-slate-400 font-mono">${data.storage_path}</span>
+                        <span class="text-xs text-slate-400 font-mono">${escapeHtml(data.storage_path)}</span>
                     </div>
-                    <h2 class="text-xl font-bold text-white leading-tight">${meta['Video Title'] || seo['recommended_best_title']}</h2>
+                    <h2 class="text-xl font-bold text-white leading-tight">${escapeHtml(meta['Video Title'] || seo['recommended_best_title'])}</h2>
                 </div>
                 <div class="flex flex-wrap items-center gap-3">
-                    <button onclick="approvePublishing('${data.idea_id}')" class="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-lg transition flex items-center space-x-2 space-x-reverse">
+                    <button type="button" data-action="approve" data-idea-id="${escapeHtml(data.idea_id)}" class="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-lg transition flex items-center space-x-2 space-x-reverse">
                         <i class="fa-solid fa-circle-check"></i>
-                        <span>اعتماد وجدولة النشر</span>
+                        <span>اعتماد وتجهيز ملفات النشر</span>
                     </button>
-                    <button onclick="runProductionForSelected('${data.idea_id}')" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs border border-slate-700 transition flex items-center space-x-2 space-x-reverse">
+                    <button type="button" data-action="produce" data-idea-id="${escapeHtml(data.idea_id)}" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs border border-slate-700 transition flex items-center space-x-2 space-x-reverse">
                         <i class="fa-solid fa-rotate"></i>
                         <span>توليد الحزمة الشاملة</span>
                     </button>
@@ -321,7 +420,7 @@ function renderStudioPackage(data) {
                     <div class="flex items-center justify-between pb-3 border-b border-slate-800">
                         <div class="flex items-center space-x-2 space-x-reverse text-indigo-400 font-bold">
                             <i class="fa-solid fa-circle-play text-xl"></i>
-                            <span class="text-base">الفيديو النهائي الجاهز للنشر (Rendered Video)</span>
+                            <span class="text-base">معاينة ملف الفيديو</span>
                         </div>
                         ${video ? `
                             <span class="text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 px-2.5 py-1 rounded-full border border-indigo-500/30">
@@ -333,13 +432,13 @@ function renderStudioPackage(data) {
                     ${video ? `
                         <div class="flex flex-col items-center space-y-3">
                             <div class="rounded-xl overflow-hidden border border-slate-700 shadow-2xl bg-black max-h-[380px] w-full flex items-center justify-center">
-                                <video controls class="max-h-[380px] w-auto rounded-lg" src="${video.url}?t=${Date.now()}" preload="metadata">
+                                <video controls class="max-h-[380px] w-auto rounded-lg" src="${escapeHtml(video.url)}?t=${Date.now()}" preload="metadata" aria-label="معاينة الفيديو">
                                     متصفحك لا يدعم تشغيل الفيديو مباشرة.
                                 </video>
                             </div>
                             <div class="flex items-center justify-between w-full text-xs text-slate-400 px-1 pt-1">
-                                <span><i class="fa-solid fa-file-video text-indigo-400 ml-1"></i>${video.filename} (${video.size_mb} MB)</span>
-                                <a href="${video.url}" download="${video.filename}" class="px-3.5 py-1.5 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 font-bold transition flex items-center space-x-1 space-x-reverse">
+                                <span><i class="fa-solid fa-file-video text-indigo-400 ml-1"></i>${escapeHtml(video.filename)} (${escapeHtml(video.size_mb)} MB)</span>
+                                <a href="${escapeHtml(video.url)}" download="${escapeHtml(video.filename)}" class="px-3.5 py-1.5 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 font-bold transition flex items-center space-x-1 space-x-reverse">
                                     <i class="fa-solid fa-download"></i>
                                     <span>تحميل الفيديو MP4</span>
                                 </a>
@@ -351,7 +450,7 @@ function renderStudioPackage(data) {
                                 <i class="fa-solid fa-clapperboard"></i>
                             </div>
                             <div class="text-slate-300 text-xs font-semibold">لم يتم تجميع ورندر الفيديو النهائي بعد.</div>
-                            <p class="text-slate-500 text-[11px]">يتم دمج المشاهد البصرية مع التعليق الصوتي والترجمة الحركية تلقائياً.</p>
+                            <p class="text-slate-500 text-[11px]">يمكن إنشاء معاينة فيديو من الإطارات الثابتة والتعليق الصوتي.</p>
                         </div>
                     `}
 
@@ -364,7 +463,7 @@ function renderStudioPackage(data) {
                                 <option value="horizontal">يوتيوب طويل (16:9 أفقي)</option>
                             </select>
                         </div>
-                        <button id="btn-render-video" onclick="triggerVideoRender('${data.idea_id}')" class="px-4 py-2 rounded-xl bg-gradient-to-l from-indigo-500 to-sky-500 hover:from-indigo-400 hover:to-sky-400 text-white font-bold text-xs shadow-md transition flex items-center space-x-2 space-x-reverse">
+                        <button id="btn-render-video" type="button" data-action="render" data-idea-id="${escapeHtml(data.idea_id)}" class="px-4 py-2 rounded-xl bg-gradient-to-l from-indigo-500 to-sky-500 hover:from-indigo-400 hover:to-sky-400 text-white font-bold text-xs shadow-md transition flex items-center space-x-2 space-x-reverse">
                             <i class="fa-solid fa-wand-magic-sparkles"></i>
                             <span>${video ? 'إعادة رندر الفيديو' : '🎬 رندر وتجميع الفيديو الآن'}</span>
                         </button>
@@ -387,10 +486,10 @@ function renderStudioPackage(data) {
                         <div class="space-y-4">
                             <div class="bg-slate-900/90 p-4 rounded-xl border border-slate-800 space-y-3">
                                 <div class="flex items-center justify-between text-xs">
-                                    <span class="font-bold text-slate-200"><i class="fa-solid fa-circle-check text-emerald-400 ml-1"></i>الصوت المختار: ${audio.voice_name}</span>
-                                    <span class="text-slate-400 font-mono text-[11px]">${audio.size_kb} KB</span>
+                                    <span class="font-bold text-slate-200"><i class="fa-solid fa-circle-check text-emerald-400 ml-1"></i>الصوت المختار: ${escapeHtml(audio.voice_name)}</span>
+                                    <span class="text-slate-400 font-mono text-[11px]">${escapeHtml(audio.size_kb)} KB</span>
                                 </div>
-                                <audio controls class="w-full h-10 rounded" src="${audio.url}?t=${Date.now()}" preload="metadata">
+                                <audio controls class="w-full h-10 rounded" src="${escapeHtml(audio.url)}?t=${Date.now()}" preload="metadata" aria-label="معاينة التعليق الصوتي">
                                     متصفحك لا يدعم مشغل الصوت.
                                 </audio>
                             </div>
@@ -420,7 +519,7 @@ function renderStudioPackage(data) {
                                     <option value="salma">سلمى (Edge TTS - أنثوي)</option>
                                 </select>
                             </div>
-                            <button id="btn-generate-voice" onclick="triggerVoiceover('${data.idea_id}')" class="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-md transition flex items-center space-x-2 space-x-reverse">
+                            <button id="btn-generate-voice" type="button" data-action="voice" data-idea-id="${escapeHtml(data.idea_id)}" class="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-md transition flex items-center space-x-2 space-x-reverse">
                                 <i class="fa-solid fa-microphone"></i>
                                 <span>${audio ? 'إعادة تسجيل الصوت' : '🎙️ توليد التعليق الصوتي'}</span>
                             </button>
@@ -476,7 +575,7 @@ function renderStudioPackage(data) {
                             </button>
                         </div>
                         <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800 text-slate-200 text-sm leading-relaxed whitespace-pre-wrap max-h-60 overflow-y-auto" id="script-text-content">
-${data.script_markdown}
+${escapeHtml(data.script_markdown)}
                         </div>
                     </div>
 
@@ -495,18 +594,18 @@ ${data.script_markdown}
                                 <div class="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800/80 space-y-2">
                                     <div class="flex items-center justify-between text-xs">
                                         <span class="font-bold text-sky-400">مشهد #${s.scene_number}</span>
-                                        <span class="font-mono text-slate-400 bg-slate-800 px-2 py-0.5 rounded">${s.timecode || '00:00'}</span>
-                                        <span class="text-amber-400 font-bold">${s.on_screen_text || ''}</span>
+                                        <span class="font-mono text-slate-400 bg-slate-800 px-2 py-0.5 rounded">${escapeHtml(s.timecode || '00:00')}</span>
+                                        <span class="text-amber-400 font-bold">${escapeHtml(s.on_screen_text || '')}</span>
                                     </div>
-                                    <p class="text-xs text-slate-300 leading-relaxed font-semibold">🗣️ الإلقاء: "${s.voiceover}"</p>
+                                    <p class="text-xs text-slate-300 leading-relaxed font-semibold">🗣️ الإلقاء: "${escapeHtml(s.voiceover)}"</p>
                                     <div class="grid grid-cols-2 gap-2 text-[11px] text-slate-400 pt-1">
-                                        <div><span class="text-slate-500">البصري:</span> ${s.visual_description || ''}</div>
-                                        <div><span class="text-slate-500">المؤثرات SFX:</span> ${s.sfx || ''}</div>
+                                        <div><span class="text-slate-500">البصري:</span> ${escapeHtml(s.visual_description || '')}</div>
+                                        <div><span class="text-slate-500">المؤثرات SFX:</span> ${escapeHtml(s.sfx || '')}</div>
                                     </div>
                                     ${s.ai_video_prompt ? `
                                         <div class="mt-1 pt-1.5 border-t border-slate-800/60 flex items-center justify-between text-[11px]">
-                                            <span class="text-slate-400 truncate max-w-[85%] font-mono text-[10px]">AI Prompt: ${s.ai_video_prompt}</span>
-                                            <button onclick="navigator.clipboard.writeText('${s.ai_video_prompt.replace(/'/g, "\\'")}')" class="text-sky-400 hover:text-sky-300 text-xs px-2 py-0.5 rounded bg-sky-500/10">
+                                            <span class="text-slate-400 truncate max-w-[85%] font-mono text-[10px]">AI Prompt: ${escapeHtml(s.ai_video_prompt)}</span>
+                                            <button data-copy-text="${escapeHtml(s.ai_video_prompt)}" class="text-sky-400 hover:text-sky-300 text-xs px-2 py-0.5 rounded bg-sky-500/10">
                                                 نسخ
                                             </button>
                                         </div>
@@ -531,8 +630,8 @@ ${data.script_markdown}
                             <div class="space-y-1.5">
                                 ${(seo.alternative_titles || []).map((t, idx) => `
                                     <div class="p-2 rounded-lg bg-slate-900/60 border border-slate-800 text-xs text-slate-200 flex items-center justify-between">
-                                        <span><b>#${idx + 1}</b> ${t}</span>
-                                        <button onclick="navigator.clipboard.writeText('${t.replace(/'/g, "\\'")}')" class="text-slate-400 hover:text-sky-400">
+                                        <span><b>#${idx + 1}</b> ${escapeHtml(t)}</span>
+                                        <button data-copy-text="${escapeHtml(t)}" class="text-slate-400 hover:text-sky-400">
                                             <i class="fa-regular fa-copy"></i>
                                         </button>
                                     </div>
@@ -544,14 +643,14 @@ ${data.script_markdown}
                         <div>
                             <div class="flex items-center justify-between mb-2">
                                 <span class="text-xs font-bold text-slate-300">الكلمات المفتاحية الـ 20 (Tags):</span>
-                                <button onclick="navigator.clipboard.writeText('${(seo.tags_20 || []).join(', ')}')" class="text-xs text-sky-400 hover:text-sky-300">
+                                <button data-copy-text="${escapeHtml((seo.tags_20 || []).join(', '))}" class="text-xs text-sky-400 hover:text-sky-300">
                                     نسخ الـ 20 كلمة معاً
                                 </button>
                             </div>
                             <div class="flex flex-wrap gap-1.5">
                                 ${(seo.tags_20 || []).map(tg => `
-                                    <span class="text-[11px] px-2 py-1 rounded bg-slate-800 text-slate-300 border border-slate-700 tag-pill cursor-pointer" onclick="navigator.clipboard.writeText('${tg}')">
-                                        ${tg}
+                                    <span class="text-[11px] px-2 py-1 rounded bg-slate-800 text-slate-300 border border-slate-700 tag-pill cursor-pointer" data-copy-text="${escapeHtml(tg)}">
+                                        ${escapeHtml(tg)}
                                     </span>
                                 `).join('')}
                             </div>
@@ -560,7 +659,7 @@ ${data.script_markdown}
                         <!-- Pinned Comment -->
                         <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800 text-xs">
                             <span class="font-bold text-sky-400 block mb-1">📌 التعليق المثبت (Pinned Comment):</span>
-                            <p class="text-slate-300">${seo.pinned_comment || ''}</p>
+                            <p class="text-slate-300">${escapeHtml(seo.pinned_comment || '')}</p>
                         </div>
                     </div>
                 </div>
@@ -572,13 +671,13 @@ ${data.script_markdown}
                         <div class="flex items-center justify-between">
                             <span class="text-xs font-bold text-slate-200"><i class="fa-brands fa-youtube text-rose-500 ml-1"></i>صورة يوتيوب (16:9)</span>
                             <span class="text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30">
-                                1280×720 (Real AI Art)
+                                1280×720 (صورة مصغّرة)
                             </span>
                         </div>
                         ${thumbs.youtube_url ? `
                             <div class="relative group rounded-xl overflow-hidden border border-slate-700 shadow-md">
-                                <img src="${thumbs.youtube_url}?t=${Date.now()}" alt="YouTube Thumbnail" class="w-full h-auto object-cover transition duration-300 group-hover:scale-105">
-                                <a href="${thumbs.youtube_url}" target="_blank" class="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition">
+                                <img src="${escapeHtml(thumbs.youtube_url)}?t=${Date.now()}" alt="YouTube Thumbnail" class="w-full h-auto object-cover transition duration-300 group-hover:scale-105">
+                                <a href="${escapeHtml(thumbs.youtube_url)}" target="_blank" rel="noopener noreferrer" class="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition">
                                     <i class="fa-solid fa-arrow-up-right-from-square ml-1"></i> فتح بالحجم الكامل
                                 </a>
                             </div>
@@ -590,13 +689,13 @@ ${data.script_markdown}
                         <div class="flex items-center justify-between">
                             <span class="text-xs font-bold text-slate-200"><i class="fa-brands fa-tiktok text-cyan-400 ml-1"></i>غلاف ريلز وشورتس (9:16)</span>
                             <span class="text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30">
-                                1080×1920 (Real AI Art)
+                                1080×1920 (غلاف رأسي)
                             </span>
                         </div>
                         ${thumbs.vertical_url ? `
                             <div class="relative group rounded-xl overflow-hidden border border-slate-700 shadow-md max-w-[200px] mx-auto">
-                                <img src="${thumbs.vertical_url}?t=${Date.now()}" alt="Vertical Shorts Cover" class="w-full h-auto object-cover transition duration-300 group-hover:scale-105">
-                                <a href="${thumbs.vertical_url}" target="_blank" class="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition">
+                                <img src="${escapeHtml(thumbs.vertical_url)}?t=${Date.now()}" alt="Vertical Shorts Cover" class="w-full h-auto object-cover transition duration-300 group-hover:scale-105">
+                                <a href="${escapeHtml(thumbs.vertical_url)}" target="_blank" rel="noopener noreferrer" class="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition">
                                     <i class="fa-solid fa-arrow-up-right-from-square ml-1"></i> فتح بالحجم الكامل
                                 </a>
                             </div>
@@ -627,7 +726,7 @@ ${data.script_markdown}
 async function runProductionForSelected(ideaId) {
     showToast(`بدء دورة الإنتاج للفكرة ${ideaId}... قد تستغرق بضع ثوانٍ.`, 'info');
     try {
-        const res = await fetch('/api/production/generate', {
+        const res = await apiFetch('/api/production/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ idea_id: ideaId })
@@ -660,7 +759,7 @@ async function runProductionForSelected(ideaId) {
 // Action: Approve Publishing
 async function approvePublishing(ideaId) {
     try {
-        const res = await fetch('/api/publishing/approve', {
+        const res = await apiFetch('/api/publishing/approve', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ idea_id: ideaId, approved: true })
@@ -668,7 +767,7 @@ async function approvePublishing(ideaId) {
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || data.message || res.statusText);
         if (data.status === 'SUCCESS_PREPARED') {
-            showToast('تم اعتماد حزمة الفيديو وتجهيز النشر للمنصات الخمس بنجاح!', 'success');
+            showToast('تم اعتماد الحزمة وتجهيز ملفاتها. النشر للمنصة يتم بعد ربط الحساب وإتمام خطواتها.', 'success');
             await openStudio(ideaId);
             await loadOverview();
         } else {
@@ -701,7 +800,7 @@ async function triggerVoiceover(ideaId) {
     }
     showToast(`جارٍ توليد التعليق الصوتي المصري عبر Google Gemini TTS...`, 'info');
     try {
-        const res = await fetch('/api/voice/generate', {
+        const res = await apiFetch('/api/voice/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ idea_id: ideaId, voice_key: voiceKey })
@@ -737,7 +836,7 @@ async function triggerVideoRender(ideaId) {
     }
     showToast(`جارٍ تجميع ورندر الفيديو الكامل (${isVertical ? 'Shorts 9:16' : '16:9'})... يرجى الانتظار ثوانٍ`, 'info');
     try {
-        const res = await fetch('/api/video/render', {
+        const res = await apiFetch('/api/video/render', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ idea_id: ideaId, voice_key: voiceKey, is_vertical: isVertical })
@@ -749,7 +848,7 @@ async function triggerVideoRender(ideaId) {
             throw new Error(detail);
         }
         const data = await res.json();
-        showToast('🎉 تم رندر وتجميع الفيديو النهائي بنجاح وجاهز للنشر!', 'success');
+        showToast('تم تركيب ملف المعاينة بنجاح. راجعه وأكمل النشر يدويًا من المنصة.', 'success');
         await openStudio(ideaId);
     } catch (err) {
         showToast(`فشل رندر الفيديو: ${err.message}`, 'error');
@@ -763,14 +862,14 @@ async function triggerVideoRender(ideaId) {
 // API: Analytics & Digest
 async function loadAnalytics() {
     try {
-        const res = await fetch('/api/analytics');
+        const res = await apiFetch('/api/analytics'); if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         state.analytics = data;
 
         // Render Digest Card
         const digestEl = document.getElementById('analytics-digest-box');
         if (digestEl) {
-            digestEl.innerHTML = data.weekly_digest;
+            digestEl.textContent = data.weekly_digest;
         }
 
         // Render Table
@@ -791,13 +890,13 @@ function renderAnalyticsTable(records) {
 
     container.innerHTML = records.map(r => `
         <tr class="border-b border-slate-800 hover:bg-slate-800/30 transition text-xs">
-            <td class="p-3 font-mono text-slate-400">${r['Record ID'] || '-'}</td>
-            <td class="p-3 font-semibold text-slate-200">${r['Video Title'] || '-'}</td>
-            <td class="p-3"><span class="px-2 py-0.5 rounded bg-slate-800 text-sky-400 font-bold">${r['Platform'] || 'YouTube'}</span></td>
+            <td class="p-3 font-mono text-slate-400">${escapeHtml(r['Record ID'] || '-')}</td>
+            <td class="p-3 font-semibold text-slate-200">${escapeHtml(r['Video Title'] || '-')}</td>
+            <td class="p-3"><span class="px-2 py-0.5 rounded bg-slate-800 text-sky-400 font-bold">${escapeHtml(r['Platform'] || 'YouTube')}</span></td>
             <td class="p-3 font-bold text-white">${Number(r['Views'] || 0).toLocaleString()}</td>
-            <td class="p-3 text-emerald-400 font-bold">${r['CTR (%)'] || '0'}%</td>
-            <td class="p-3 font-bold text-amber-400">${r['AI Performance Score'] || '8.5/10'}</td>
-            <td class="p-3 text-slate-400">${r['Recorded Date'] || '-'}</td>
+            <td class="p-3 text-emerald-400 font-bold">${escapeHtml(r['CTR (%)'] || '0')}%</td>
+            <td class="p-3 font-bold text-amber-400">${escapeHtml(r['AI Performance Score'] || '—')}</td>
+            <td class="p-3 text-slate-400">${escapeHtml(r['Recorded Date'] || '-')}</td>
         </tr>
     `).join('');
 }
@@ -808,6 +907,11 @@ function renderAnalyticsChart() {
     if (!canvas) return;
 
     const records = state.analytics.records;
+    if (!records.length) {
+        if (state.chartInstance) state.chartInstance.destroy();
+        state.chartInstance = null;
+        return;
+    }
     const labels = records.map(r => (r['Video Title'] || '').substring(0, 18) + '...');
     const viewsData = records.map(r => Number(r['Views'] || 0));
     const ctrData = records.map(r => Number(r['CTR (%)'] || 0));
@@ -825,8 +929,8 @@ function renderAnalyticsChart() {
                 {
                     label: 'المشاهدات (Views)',
                     data: viewsData,
-                    backgroundColor: 'rgba(56, 189, 248, 0.7)',
-                    borderColor: '#38bdf8',
+                    backgroundColor: 'rgba(48, 72, 58, 0.7)',
+                    borderColor: '#30483a',
                     borderWidth: 1,
                     yAxisID: 'y',
                     borderRadius: 6
@@ -835,8 +939,8 @@ function renderAnalyticsChart() {
                     label: 'نسبة النقر للظهور CTR (%)',
                     data: ctrData,
                     type: 'line',
-                    borderColor: '#f59e0b',
-                    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                    borderColor: '#b75e43',
+                    backgroundColor: 'rgba(183, 94, 67, 0.16)',
                     borderWidth: 2,
                     yAxisID: 'y1',
                     tension: 0.3
@@ -848,24 +952,24 @@ function renderAnalyticsChart() {
             maintainAspectRatio: false,
             plugins: {
                 legend: {
-                    labels: { color: '#94a3b8', font: { family: 'Cairo' } }
+                    labels: { color: '#94a3b8', font: { family: 'Tahoma' } }
                 }
             },
             scales: {
                 x: {
-                    ticks: { color: '#64748b', font: { family: 'Cairo', size: 10 } },
+                    ticks: { color: '#64748b', font: { family: 'Tahoma', size: 10 } },
                     grid: { color: 'rgba(51, 65, 85, 0.2)' }
                 },
                 y: {
                     type: 'linear',
                     position: 'left',
-                    ticks: { color: '#38bdf8' },
+                    ticks: { color: '#30483a' },
                     grid: { color: 'rgba(51, 65, 85, 0.2)' }
                 },
                 y1: {
                     type: 'linear',
                     position: 'right',
-                    ticks: { color: '#f59e0b' },
+                    ticks: { color: '#b75e43' },
                     grid: { drawOnChartArea: false }
                 }
             }
@@ -877,7 +981,7 @@ function renderAnalyticsChart() {
 async function triggerRefreshAnalytics() {
     showToast('جاري إعادة احتساب التحليلات وتحديث التقرير الأسبوعي...', 'info');
     try {
-        const res = await fetch('/api/analytics/refresh', { method: 'POST' });
+        const res = await apiFetch('/api/analytics/refresh', { method: 'POST' });
         const data = await res.json();
         if (data.success) {
             showToast('تم تحديث التحليلات والتقرير الأسبوعي بنجاح!', 'success');
@@ -894,14 +998,14 @@ function copyDigestText() {
     const el = document.getElementById('analytics-digest-box');
     if (!el) return;
     const text = el.innerText || el.textContent;
-    navigator.clipboard.writeText(text);
-    showToast('تم نسخ التقرير الأسبوعي بصيغة جاهزة لتليجرام!', 'success');
+    navigator.clipboard.writeText(text).then(() => showToast('تم نسخ التقرير الأسبوعي.', 'success'))
+        .catch(() => showToast('تعذر النسخ؛ تحقق من صلاحية الحافظة في المتصفح.', 'error'));
 }
 
 // API: Settings
 async function loadSettings() {
     try {
-        const res = await fetch('/api/settings');
+        const res = await apiFetch('/api/settings'); if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         state.settings = data;
         const container = document.getElementById('settings-list');
@@ -909,14 +1013,15 @@ async function loadSettings() {
 
         container.innerHTML = Object.keys(data).map(key => {
             const item = data[key];
+            const safeKey = escapeHtml(key);
             return `
                 <div class="glass-panel p-4 rounded-xl border border-slate-700/60 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
                     <div class="md:w-1/3">
-                        <span class="font-mono text-sky-400 font-bold block">${key}</span>
-                        <p class="text-slate-400 text-[11px]">${item.description || ''}</p>
+                        <span class="font-mono text-sky-400 font-bold block">${safeKey}</span>
+                        <p class="text-slate-400 text-[11px]">${escapeHtml(item.description || '')}</p>
                     </div>
                     <div class="md:w-1/2">
-                        <input type="text" id="setting-${key}" value="${item.value}" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-sky-500 font-mono text-xs">
+                        <input type="text" id="setting-${safeKey}" value="${escapeHtml(item.value || '')}" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-sky-500 font-mono text-xs">
                     </div>
                 </div>
             `;
@@ -936,7 +1041,7 @@ async function saveAllSettings() {
     });
 
     try {
-        const res = await fetch('/api/settings', {
+        const res = await apiFetch('/api/settings', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -959,7 +1064,7 @@ async function runFullPipelineCycle() {
     showToast('بدء تشغيل دورة الأوتوميشن الشاملة من الألف إلى الياء...', 'info');
 
     try {
-        const res = await fetch('/api/pipeline/run-full-cycle', { method: 'POST' });
+        const res = await apiFetch('/api/pipeline/run-full-cycle', { method: 'POST' });
         let data;
         try {
             data = await res.json();
@@ -989,6 +1094,7 @@ async function runFullPipelineCycle() {
 function copyText(elemId) {
     const el = document.getElementById(elemId);
     if (!el) return;
-    navigator.clipboard.writeText(el.innerText || el.textContent);
-    showToast('تم النسخ إلى الحافظة!', 'success');
+    navigator.clipboard.writeText(el.innerText || el.textContent)
+        .then(() => showToast('تم النسخ إلى الحافظة!', 'success'))
+        .catch(() => showToast('تعذر النسخ؛ تحقق من صلاحية الحافظة في المتصفح.', 'error'));
 }
