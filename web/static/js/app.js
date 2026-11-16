@@ -1076,15 +1076,23 @@ async function loadSettings() {
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                         <div class="md:col-span-2 p-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 space-y-3">
-                            <div class="font-bold text-emerald-300 flex items-center gap-2"><i class="fa-solid fa-database"></i><span>وضع Firestore فقط (البيانات)</span></div>
+                            <div class="flex items-center justify-between gap-2 flex-wrap">
+                                <div class="font-bold text-emerald-300 flex items-center gap-2"><i class="fa-solid fa-database"></i><span>Firebase (البيانات + بديل تخزين الملفات)</span></div>
+                                <span class="text-[10px] px-2 py-0.5 rounded-full ${integ.file_store?.configured ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-slate-700/40 text-slate-300 border border-slate-600/40'}">${escapeHtml(integ.file_store?.provider || 'تخزين الملفات: غير مهيأ')}</span>
+                            </div>
                             <label class="block">
                                 <span class="block text-slate-300 font-bold mb-1">FIRESTORE_PROJECT_ID ${integ.firestore_project_id?.value ? `<span class="text-slate-500 font-mono">(${escapeHtml(integ.firestore_project_id.value)})</span>` : ''}</span>
                                 <input type="text" id="integration-firestore-project" value="${escapeHtml(integ.firestore_project_id?.value || '')}" placeholder="معرّف مشروع Firebase/Firestore" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-sky-500 font-mono">
                             </label>
                             <label class="block">
+                                <span class="block text-slate-300 font-bold mb-1">FIREBASE_STORAGE_BUCKET (بديل R2 للأصول)</span>
+                                <input type="text" id="integration-firebase-bucket" value="${escapeHtml(integ.firebase_storage_bucket?.value || '')}" placeholder="مثال: midad-content-studio.firebasestorage.app" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-sky-500 font-mono">
+                                <span class="block text-[11px] text-slate-500 mt-1">فعّل Firebase Storage في نفس مشروع Firebase وأنشئ bucket، ثم ضع اسمه هنا لتخزين الأصول (صوت/فيديو/صور) بدل Cloudflare R2. يمكن تركه فارغًا لاستخدام الافتراضي للمشروع إن كان متاحًا.</span>
+                            </label>
+                            <label class="block">
                                 <span class="block text-slate-300 font-bold mb-1">FIREBASE_SERVICE_ACCOUNT_JSON ${integ.firebase_service_account_json?.masked ? `<span class="text-slate-500 font-mono">(محفوظ)</span>` : ''}</span>
                                 <textarea id="integration-firestore-sa" rows="4" placeholder='الصق JSON لحساب الخدمة بالكامل (اتركه فارغًا لعدم التغيير)' class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-sky-500 font-mono text-[11px]"></textarea>
-                                <span class="block text-[11px] text-slate-500 mt-1">عند تهيئة Firestore سيستخدمه التطبيق كمصدر للبيانات (الأفكار والإعدادات والتحليلات والسجلات) بدل CSV. على Vercel يُفضّل ضبط المتغيرات في Environment Variables وإعادة النشر.</span>
+                                <span class="block text-[11px] text-slate-500 mt-1">عند تهيئة Firestore سيستخدمه التطبيق كمصدر للبيانات بدل CSV. على Vercel يُفضّل ضبط المتغيرات في Environment Variables وإعادة النشر.</span>
                             </label>
                         </div>
                         <label class="block md:col-span-2">
@@ -1125,7 +1133,8 @@ async function saveIntegrationKeys() {
         google_tts_model: document.getElementById('integration-tts-model')?.value || '',
         google_image_model: document.getElementById('integration-image-model')?.value || '',
         google_use_imagen: !!document.getElementById('integration-use-imagen')?.checked,
-        firestore_project_id: document.getElementById('integration-firestore-project')?.value || ''
+        firestore_project_id: document.getElementById('integration-firestore-project')?.value || '',
+        firebase_storage_bucket: document.getElementById('integration-firebase-bucket')?.value || ''
     };
     if (geminiInput && geminiInput.value.trim()) payload.gemini_api_key = geminiInput.value.trim();
     if (saInput && saInput.value.trim()) payload.firebase_service_account_json = saInput.value.trim();

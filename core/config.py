@@ -74,6 +74,7 @@ class Config:
     # the CSV adapter until credentials are explicitly configured.
     FIRESTORE_PROJECT_ID = os.getenv("FIRESTORE_PROJECT_ID", "")
     FIREBASE_SERVICE_ACCOUNT_JSON = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON", "")
+    FIREBASE_STORAGE_BUCKET = os.getenv("FIREBASE_STORAGE_BUCKET", "")
     R2_ACCOUNT_ID = os.getenv("R2_ACCOUNT_ID", "")
     R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID", "")
     R2_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY", "")

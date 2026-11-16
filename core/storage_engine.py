@@ -57,21 +57,52 @@ class StorageEngine:
             
         return str(md_file), str(json_file)
 
-    def sync_to_r2(self, idea_id):
-        """Upload generated assets to R2; a no-op while R2 is not configured."""
-        from core.r2_storage import enabled, put_file
-        if not enabled():
-            return {"uploaded": 0, "configured": False}
+    def sync_to_cloud(self, idea_id):
+        """Upload generated assets to configured cloud file storage (Firebase Storage or R2)."""
         root = self.root_dir / idea_id
+        providers = []
+        # Prefer Firebase Storage when configured (fits "Firestore/Firebase only" setups)
+        try:
+            from core import firebase_storage
+            if firebase_storage.enabled():
+                providers.append(("Firebase Storage", firebase_storage))
+        except Exception:
+            pass
+        try:
+            from core import r2_storage
+            if r2_storage.enabled():
+                providers.append(("Cloudflare R2", r2_storage))
+        except Exception:
+            pass
+        if not providers:
+            return {"uploaded": 0, "configured": False, "provider": "local files (temporary on Vercel)"}
+
         uploaded = 0
+        errors = []
         for path in root.rglob("*"):
             if not path.is_file():
                 continue
             relative = path.relative_to(root).as_posix()
             content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
-            put_file(path, f"{idea_id}/{relative}", content_type)
-            uploaded += 1
-        return {"uploaded": uploaded, "configured": True}
+            object_key = f"{idea_id}/{relative}"
+            ok = False
+            for name, mod in providers:
+                try:
+                    mod.put_file(path, object_key, content_type)
+                    ok = True
+                    break
+                except Exception as e:
+                    errors.append(f"{name}: {e}")
+            if ok:
+                uploaded += 1
+        res = {"uploaded": uploaded, "configured": True, "provider": ", ".join([p[0] for p in providers])}
+        if errors and uploaded == 0:
+            res["error"] = errors[-1]
+        return res
+
+    def sync_to_r2(self, idea_id):
+        """Backward-compatible alias."""
+        return self.sync_to_cloud(idea_id)
 
     def save_seo_asset(self, idea_id, seo_data):
         """Saves SEO metadata JSON and copyable text file to /SEO."""

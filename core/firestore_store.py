@@ -27,10 +27,14 @@ def _client():
             account = json.loads(Config.FIREBASE_SERVICE_ACCOUNT_JSON)
         except Exception as exc:
             raise RuntimeError("FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON") from exc
-        firebase_admin.initialize_app(
-            credentials.Certificate(account),
-            {"projectId": Config.FIRESTORE_PROJECT_ID},
-        )
+        options = {"projectId": Config.FIRESTORE_PROJECT_ID}
+        bucket = (Config.FIREBASE_STORAGE_BUCKET or "").strip()
+        if not bucket and Config.FIRESTORE_PROJECT_ID:
+            # Common default bucket names; actual bucket must exist in Firebase project.
+            bucket = f"{Config.FIRESTORE_PROJECT_ID}.firebasestorage.app"
+        if bucket:
+            options["storageBucket"] = bucket
+        firebase_admin.initialize_app(credentials.Certificate(account), options)
     return firestore.client()
 
 

@@ -82,6 +82,21 @@ STORAGE_DIR = BASE_DIR / "storage"
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+def _serve_cloud_file(object_key: str, default_media_type: str):
+    for mod_name in ("core.firebase_storage", "core.r2_storage"):
+        try:
+            mod = __import__(mod_name, fromlist=["enabled", "get_file"])
+            if not mod.enabled():
+                continue
+            obj = mod.get_file(object_key)
+            if obj:
+                body = obj["Body"].read() if hasattr(obj.get("Body"), "read") else obj.get("Body")
+                return Response(content=body, media_type=obj.get("ContentType") or default_media_type)
+        except Exception:
+            continue
+    return None
+
+
 @app.get("/api/thumbnail/{idea_id}/{filename}")
 async def serve_thumbnail(idea_id: str, filename: str):
     """Serves generated thumbnail file safely across local and serverless environments."""
@@ -93,13 +108,9 @@ async def serve_thumbnail(idea_id: str, filename: str):
     fallback = BASE_DIR / "storage" / "AI Content Factory" / "2026" / idea_id / "Thumbnails" / filename
     if fallback.exists() and fallback.is_file():
         return FileResponse(fallback)
-    from core.r2_storage import get_file, enabled
-    if enabled():
-        try:
-            obj = get_file(f"{idea_id}/Thumbnails/{filename}")
-            return Response(content=obj["Body"].read(), media_type=obj.get("ContentType", "image/jpeg"))
-        except Exception:
-            pass
+    resp = _serve_cloud_file(f"{idea_id}/Thumbnails/{filename}", "image/jpeg")
+    if resp:
+        return resp
     raise HTTPException(status_code=404, detail="Thumbnail not found")
 
 @app.get("/api/audio/{idea_id}/{filename}")
@@ -107,19 +118,16 @@ async def serve_audio(idea_id: str, filename: str):
     """Serves generated VoxArabic voiceover audio file."""
     if Path(idea_id).name != idea_id or Path(filename).name != filename:
         raise HTTPException(status_code=400, detail="Invalid asset path")
+    mt = "audio/wav" if filename.lower().endswith(".wav") else "audio/mpeg"
     target = STORAGE_ROOT / idea_id / "Audio" / filename
     if target.exists() and target.is_file():
-        return FileResponse(target, media_type="audio/wav" if target.suffix.lower() == ".wav" else "audio/mpeg")
+        return FileResponse(target, media_type=mt)
     fallback = BASE_DIR / "storage" / "AI Content Factory" / "2026" / idea_id / "Audio" / filename
     if fallback.exists() and fallback.is_file():
-        return FileResponse(fallback, media_type="audio/wav" if fallback.suffix.lower() == ".wav" else "audio/mpeg")
-    from core.r2_storage import get_file, enabled
-    if enabled():
-        try:
-            obj = get_file(f"{idea_id}/Audio/{filename}")
-            return Response(content=obj["Body"].read(), media_type=obj.get("ContentType", "audio/mpeg"))
-        except Exception:
-            pass
+        return FileResponse(fallback, media_type=mt)
+    resp = _serve_cloud_file(f"{idea_id}/Audio/{filename}", mt)
+    if resp:
+        return resp
     raise HTTPException(status_code=404, detail="Audio file not found")
 
 @app.get("/api/video/{idea_id}/{filename}")
@@ -133,13 +141,9 @@ async def serve_video(idea_id: str, filename: str):
     fallback = BASE_DIR / "storage" / "AI Content Factory" / "2026" / idea_id / "Video_Assets" / filename
     if fallback.exists() and fallback.is_file():
         return FileResponse(fallback, media_type="video/mp4")
-    from core.r2_storage import get_file, enabled
-    if enabled():
-        try:
-            obj = get_file(f"{idea_id}/Video_Assets/{filename}")
-            return Response(content=obj["Body"].read(), media_type="video/mp4")
-        except Exception:
-            pass
+    resp = _serve_cloud_file(f"{idea_id}/Video_Assets/{filename}", "video/mp4")
+    if resp:
+        return resp
     raise HTTPException(status_code=404, detail="Video file not found")
 
 @app.get("/api/scene-frame/{idea_id}/{filename}")
@@ -153,6 +157,9 @@ async def serve_scene_frame(idea_id: str, filename: str):
     fallback = BASE_DIR / "storage" / "AI Content Factory" / "2026" / idea_id / "Video_Assets" / filename
     if fallback.exists() and fallback.is_file():
         return FileResponse(fallback, media_type="image/jpeg")
+    resp = _serve_cloud_file(f"{idea_id}/Video_Assets/{filename}", "image/jpeg")
+    if resp:
+        return resp
     raise HTTPException(status_code=404, detail="Scene frame not found")
 
 @app.get("/storage/{file_path:path}")
@@ -223,11 +230,23 @@ async def get_overview():
 
     from core.firestore_store import health as firestore_health
     from core.r2_storage import health as r2_health
+    try:
+        from core.firebase_storage import health as fb_storage_health
+        fb = fb_storage_health()
+    except Exception:
+        fb = {"configured": False, "provider": "Firebase Storage"}
+    r2 = r2_health()
+    if fb.get("configured"):
+        file_store = fb
+        if r2.get("configured"):
+            file_store = {**fb, "provider": "Firebase Storage + Cloudflare R2"}
+    else:
+        file_store = r2
     return {
         "status": "online",
         "system_time": __import__("datetime").datetime.now().astimezone().isoformat(timespec="seconds"),
         "data_store": firestore_health(),
-        "file_store": r2_health(),
+        "file_store": file_store,
         "kpis": {
             "total_ideas": total_ideas,
             "short_ideas": short_count,
@@ -511,14 +530,14 @@ def generate_production_package(payload: Dict[str, Any] = Body(...)):
         # 8. Update status in Ideas.csv
         idea_engine.update_idea_status(idea_id, "Ready for Production")
         try:
-            r2_sync = storage_engine.sync_to_r2(idea_id)
+            cloud_sync = storage_engine.sync_to_cloud(idea_id)
         except Exception as storage_error:
-            print(f"R2 upload warning for {idea_id}: {type(storage_error).__name__}")
-            r2_sync = {"configured": True, "uploaded": 0, "error": "cloud storage sync failed"}
+            print(f"Cloud storage upload warning for {idea_id}: {type(storage_error).__name__}: {storage_error}")
+            cloud_sync = {"configured": True, "uploaded": 0, "error": "cloud storage sync failed"}
 
         return {
             "success": True,
-            "file_storage": r2_sync,
+            "file_storage": cloud_sync,
             "idea_id": idea_id,
             "message": "Full production package generated: Script, SEO, Real AI Thumbnails, Egyptian Voiceover, and Ready-to-Publish Video.",
             "script": script_to_use,
@@ -750,6 +769,20 @@ async def integrations_status():
         if not v:
             return ""
         return ("*" * max(0, len(v) - 4)) + v[-4:] if len(v) > 4 else "*" * len(v)
+    try:
+        from core.firebase_storage import health as fb_storage_health
+        file_store = fb_storage_health()
+    except Exception:
+        file_store = {"configured": False, "provider": "Firebase Storage"}
+    try:
+        from core.r2_storage import health as r2_health
+        r2 = r2_health()
+        if not file_store.get("configured") and r2.get("configured"):
+            file_store = r2
+        elif file_store.get("configured") and r2.get("configured"):
+            file_store = {**file_store, "provider": "Firebase Storage + Cloudflare R2"}
+    except Exception:
+        pass
     return {
         "gemini_api_key": {"configured": bool(Config.GEMINI_API_KEY), "masked": mask(Config.GEMINI_API_KEY)},
         "google_use_imagen": bool(getattr(Config, "GOOGLE_USE_IMAGEN", False)),
@@ -757,9 +790,11 @@ async def integrations_status():
         "google_image_model": getattr(Config, "GOOGLE_IMAGE_MODEL", ""),
         "firestore_project_id": {"configured": bool(Config.FIRESTORE_PROJECT_ID), "value": Config.FIRESTORE_PROJECT_ID},
         "firebase_service_account_json": {"configured": bool(Config.FIREBASE_SERVICE_ACCOUNT_JSON), "masked": mask(Config.FIREBASE_SERVICE_ACCOUNT_JSON)},
+        "firebase_storage_bucket": {"configured": bool(getattr(Config, "FIREBASE_STORAGE_BUCKET", "")), "value": getattr(Config, "FIREBASE_STORAGE_BUCKET", "")},
         "data_store": firestore_store.health(),
+        "file_store": file_store,
         "env_file": str(BASE_DIR / ".env"),
-        "note": "للتشغيل بوضع \"Firestore فقط\" أضف FIRESTORE_PROJECT_ID و FIREBASE_SERVICE_ACCOUNT_JSON (JSON لحساب الخدمة) ثم أعد تشغيل/نشر التطبيق. على Vercel أضفها كمتغيرات بيئة؛ الحفظ المحلي يكتب في .env للجلسة/التشغيل المحلي."
+        "note": "للوضع Firestore/Firebase: أضف FIRESTORE_PROJECT_ID وFIREBASE_SERVICE_ACCOUNT_JSON، ولتخزين الأصول (بديل R2) فعّل Firebase Storage وحدد FIREBASE_STORAGE_BUCKET (مثلاً: PROJECT_ID.firebasestorage.app). على Vercel أضف المتغيرات في Environment Variables وأعد النشر."
     }
 
 
@@ -776,6 +811,8 @@ async def update_integration_keys(payload: Dict[str, Any] = Body(...)):
         updates["GOOGLE_USE_IMAGEN"] = "true" if bool(payload.get("google_use_imagen")) else "false"
     if "firestore_project_id" in payload:
         updates["FIRESTORE_PROJECT_ID"] = str(payload.get("firestore_project_id") or "").strip()
+    if "firebase_storage_bucket" in payload:
+        updates["FIREBASE_STORAGE_BUCKET"] = str(payload.get("firebase_storage_bucket") or "").strip()
     if "firebase_service_account_json" in payload:
         sa = str(payload.get("firebase_service_account_json") or "").strip()
         if sa:
@@ -795,10 +832,16 @@ async def update_integration_keys(payload: Dict[str, Any] = Body(...)):
     Config.GOOGLE_IMAGE_MODEL = os.getenv("GOOGLE_IMAGE_MODEL", Config.GOOGLE_IMAGE_MODEL)
     Config.FIRESTORE_PROJECT_ID = os.getenv("FIRESTORE_PROJECT_ID", Config.FIRESTORE_PROJECT_ID)
     Config.FIREBASE_SERVICE_ACCOUNT_JSON = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON", Config.FIREBASE_SERVICE_ACCOUNT_JSON)
-    # reset cached firestore client if config changed
+    Config.FIREBASE_STORAGE_BUCKET = os.getenv("FIREBASE_STORAGE_BUCKET", getattr(Config, "FIREBASE_STORAGE_BUCKET", ""))
+    # reset cached clients if config changed
     try:
         from core.firestore_store import _client
         _client.cache_clear()
+    except Exception:
+        pass
+    try:
+        from core.firebase_storage import _bucket
+        _bucket.cache_clear()
     except Exception:
         pass
     # reload settings from new store if available
