@@ -6,7 +6,6 @@ Adheres to security rule: NEVER hardcode API keys.
 
 import os
 import csv
-import shutil
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -18,26 +17,11 @@ if IS_VERCEL:
     STORAGE_ROOT = TMP_ROOT / "storage" / "AI Content Factory" / "2026"
     PROMPTS_DIR = BASE_DIR / "prompts"
 
-    # Seed /tmp folders from repo if not yet present
+    # Serverless writable storage is ephemeral. Never present the seeded copy as
+    # a durable database; persistent storage must be configured separately.
     try:
-        if not DB_DIR.exists():
-            DB_DIR.mkdir(parents=True, exist_ok=True)
-            repo_db = BASE_DIR / "database"
-            if repo_db.exists():
-                for item in repo_db.glob("*"):
-                    if item.is_file():
-                        shutil.copy2(item, DB_DIR / item.name)
-
-        if not STORAGE_ROOT.exists():
-            STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
-            repo_storage = BASE_DIR / "storage" / "AI Content Factory" / "2026"
-            if repo_storage.exists():
-                for sub in repo_storage.glob("*"):
-                    dest = STORAGE_ROOT / sub.name
-                    if sub.is_dir() and not dest.exists():
-                        shutil.copytree(sub, dest)
-                    elif sub.is_file() and not dest.exists():
-                        shutil.copy2(sub, dest)
+        DB_DIR.mkdir(parents=True, exist_ok=True)
+        STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
     except Exception as e:
         print(f"[!] Warning initializing /tmp for Vercel: {e}")
 else:

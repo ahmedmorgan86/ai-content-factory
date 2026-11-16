@@ -139,7 +139,9 @@ class VoiceEngine:
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        voice_info = VOICE_PROFILES.get(voice_key, VOICE_PROFILES["shakir"])
+        if voice_key not in VOICE_PROFILES:
+            raise ValueError(f"Unsupported voice profile: {voice_key}")
+        voice_info = VOICE_PROFILES[voice_key]
         voice_id = voice_info["id"]
 
         use_google = voice_key in GOOGLE_VOICES
