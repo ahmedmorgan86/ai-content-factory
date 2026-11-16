@@ -1,0 +1,11 @@
+{
+  "name": "ai-content-factory-assets",
+  "private": true,
+  "scripts": {
+    "build:css": "tailwindcss -i web/static/css/tailwind.input.css -o web/static/css/tailwind.css --minify"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.3.0",
+    "tailwindcss": "^4.3.0"
+  }
+}

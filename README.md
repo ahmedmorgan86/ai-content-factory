@@ -118,6 +118,9 @@ ai-content-factory/
 
 ## 🛠️ 5. خطوات التثبيت والربط السحابي (Cloud & Local Setup)
 
+### بناء ملفات CSS للوحة التحكم
+بعد تثبيت Node.js، نفّذ `npm install` ثم `npm run build:css` لتجميع Tailwind محلياً في `web/static/css/tailwind.css` قبل النشر. لا تعتمد الواجهة في الإنتاج على Tailwind CDN.
+
 ### إعداد Google Gemini وVoxArabicStudio
 تم ربط تدفق الصوت بمحرك VoxArabicStudio مع Google Gemini TTS. يختار النظام صوتاً مناسباً: Puck للشورتس وCharon للفيديوهات الطويلة، ويمكن اختيار أصوات Gemini الأخرى أو الرجوع إلى Edge TTS. يُحفظ صوت Gemini بصيغة WAV ويُستخدم الملف نفسه عند رندر الفيديو.
 
