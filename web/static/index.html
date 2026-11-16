@@ -3,58 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Content Factory | غرفة قيادة مصنع المحتوى الذكي</title>
-    <!-- Favicon -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
+    <title>مِداد | استوديو المحتوى</title>
+    <meta name="description" content="مساحة عربية لتنظيم الأفكار وإنتاج المحتوى ومراجعته قبل النشر.">
+    <meta name="theme-color" content="#283b32">
+    <link rel="icon" href="/static/images/favicon.svg" type="image/svg+xml">
     <!-- Locally generated Tailwind CSS -->
     <link rel="stylesheet" href="/static/css/tailwind.css">
-    <!-- Font Awesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css">
+    <script defer src="/static/vendor/chart/chart.umd.min.js"></script>
     <!-- Custom CSS -->
     <link rel="stylesheet" href="/static/css/custom.css">
 </head>
-<body class="bg-[#0b1120] text-slate-100 min-h-screen flex flex-col antialiased selection:bg-sky-500 selection:text-white">
+<body class="min-h-screen flex flex-col antialiased">
+    <a class="skip-link" href="#main-content">تخطّي إلى المحتوى</a>
 
     <!-- Toast Notification Container -->
     <div id="toast-container" class="fixed bottom-6 left-6 z-50 flex flex-col space-y-3 pointer-events-none"></div>
 
     <!-- Top Navigation Header -->
-    <header class="sticky top-0 z-40 bg-[#0f172a]/90 backdrop-blur-md border-b border-sky-500/20 px-6 py-3.5">
+    <header class="site-header sticky top-0 z-40 px-6 py-3.5">
         <div class="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <!-- Brand & Status -->
             <div class="flex items-center space-x-4 space-x-reverse">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center text-white shadow-lg glow-cyan">
-                    <i class="fa-solid fa-microchip text-xl"></i>
+                <div class="brand-mark" aria-hidden="true">
+                    <span>م</span>
                 </div>
                 <div>
                     <div class="flex items-center space-x-2 space-x-reverse">
-                        <h1 class="text-lg font-black tracking-wide bg-gradient-to-l from-white via-slate-100 to-sky-400 bg-clip-text text-transparent">
-                            AI Content Factory
-                        </h1>
-                        <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/30">
-                            v1.0 (2026)
-                        </span>
+                        <h1 class="brand-title">مِداد</h1>
+                        <span class="brand-edition">استوديو المحتوى</span>
                     </div>
-                    <p class="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
-                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                        <span>غرفة التحكم والأوتوميشن الذكية | اللهجة المصرية للمحتوى التقني</span>
+                    <p class="brand-caption flex items-center gap-1.5 mt-0.5">
+                        <span class="status-dot" aria-hidden="true"></span>
+                        <span>من الفكرة إلى محتوى جاهز للمراجعة</span>
                     </p>
                 </div>
             </div>
 
             <!-- Quick Action Command Buttons -->
             <div class="flex items-center flex-wrap gap-2.5">
-                <button id="btn-run-full-cycle" onclick="runFullPipelineCycle()" class="px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-l from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white shadow-lg shadow-sky-500/20 transition flex items-center space-x-2 space-x-reverse">
+                <button id="btn-run-full-cycle" type="button" onclick="runFullPipelineCycle()" class="action-primary px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 space-x-reverse">
                     <i class="fa-solid fa-bolt-lightning text-amber-300"></i>
-                    <span>تشغيل الدورة الشاملة</span>
+                            <span>تشغيل دورة الإنتاج</span>
                 </button>
-                <button id="btn-gen-ideas" onclick="triggerGenerateIdeas()" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center space-x-2 space-x-reverse">
+                <button id="btn-gen-ideas" type="button" onclick="triggerGenerateIdeas()" class="action-secondary px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 space-x-reverse">
                     <i class="fa-solid fa-lightbulb text-amber-400"></i>
                     <span>توليد 20 فكرة</span>
                 </button>
-                <button onclick="triggerRefreshAnalytics()" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center space-x-2 space-x-reverse">
+                <button type="button" onclick="triggerRefreshAnalytics()" class="action-secondary px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 space-x-reverse">
                     <i class="fa-solid fa-chart-line text-emerald-400"></i>
                     <span>تحديث التقرير</span>
                 </button>
@@ -63,85 +59,93 @@
     </header>
 
     <!-- Sub-Navbar / Tabs -->
-    <div class="bg-[#0d1527] border-b border-slate-800 px-6 py-2">
-        <div class="max-w-7xl mx-auto flex items-center space-x-1 space-x-reverse overflow-x-auto text-xs font-bold">
-            <button class="nav-tab px-4 py-2 rounded-xl border border-sky-500/50 bg-sky-500/20 text-sky-400 flex items-center space-x-2 space-x-reverse transition" data-tab="dashboard">
+    <nav class="section-nav px-6 py-2" aria-label="التنقل الرئيسي">
+        <div class="max-w-7xl mx-auto flex items-center space-x-1 space-x-reverse overflow-x-auto text-xs font-bold" role="tablist">
+            <button id="nav-tab-dashboard" type="button" role="tab" aria-selected="true" aria-controls="tab-dashboard" class="nav-tab px-4 py-2 rounded-xl flex items-center space-x-2 space-x-reverse transition" data-tab="dashboard">
                 <i class="fa-solid fa-gauge-high"></i>
                 <span>غرفة القيادة (Dashboard)</span>
             </button>
-            <button class="nav-tab px-4 py-2 rounded-xl border border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-2 space-x-reverse transition" data-tab="ideas">
+            <button id="nav-tab-ideas" type="button" role="tab" aria-selected="false" aria-controls="tab-ideas" class="nav-tab px-4 py-2 rounded-xl flex items-center space-x-2 space-x-reverse transition" data-tab="ideas">
                 <i class="fa-solid fa-lightbulb"></i>
                 <span>بنك الأفكار (Idea Bank)</span>
             </button>
-            <button class="nav-tab px-4 py-2 rounded-xl border border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-2 space-x-reverse transition" data-tab="studio">
+            <button id="nav-tab-studio" type="button" role="tab" aria-selected="false" aria-controls="tab-studio" class="nav-tab px-4 py-2 rounded-xl flex items-center space-x-2 space-x-reverse transition" data-tab="studio">
                 <i class="fa-solid fa-wand-magic-sparkles"></i>
                 <span>استوديو الإنتاج (Studio)</span>
             </button>
-            <button class="nav-tab px-4 py-2 rounded-xl border border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-2 space-x-reverse transition" data-tab="publishing">
+            <button id="nav-tab-publishing" type="button" role="tab" aria-selected="false" aria-controls="tab-publishing" class="nav-tab px-4 py-2 rounded-xl flex items-center space-x-2 space-x-reverse transition" data-tab="publishing">
                 <i class="fa-solid fa-share-nodes"></i>
                 <span>بوابة النشر والاعتماد (Publishing)</span>
             </button>
-            <button class="nav-tab px-4 py-2 rounded-xl border border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-2 space-x-reverse transition" data-tab="analytics">
+            <button id="nav-tab-analytics" type="button" role="tab" aria-selected="false" aria-controls="tab-analytics" class="nav-tab px-4 py-2 rounded-xl flex items-center space-x-2 space-x-reverse transition" data-tab="analytics">
                 <i class="fa-solid fa-chart-pie"></i>
                 <span>تحليلات النمو والتقرير الأسبوعي</span>
             </button>
-            <button class="nav-tab px-4 py-2 rounded-xl border border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-2 space-x-reverse transition" data-tab="settings">
+            <button id="nav-tab-settings" type="button" role="tab" aria-selected="false" aria-controls="tab-settings" class="nav-tab px-4 py-2 rounded-xl flex items-center space-x-2 space-x-reverse transition" data-tab="settings">
                 <i class="fa-solid fa-sliders"></i>
                 <span>الإعدادات والربط السحابي</span>
             </button>
         </div>
-    </div>
+    </nav>
 
     <!-- Main Workspace Container -->
-    <main class="flex-1 max-w-7xl w-full mx-auto p-6">
+    <main id="main-content" class="flex-1 max-w-7xl w-full mx-auto p-6">
 
         <!-- ========================================== -->
         <!-- TAB 1: DASHBOARD (نظرة عامة) -->
         <!-- ========================================== -->
         <section id="tab-dashboard" class="tab-content space-y-6">
+            <div class="dashboard-intro">
+                <div>
+                    <p class="intro-eyebrow">مِداد · مساحة التحرير</p>
+                    <h2>من فكرة عابرة إلى حكاية تستحق المشاهدة.</h2>
+                    <p>رتّب أفكارك، جهّز عناصر الفيديو، وراجع كل شيء قبل اعتماده.</p>
+                </div>
+                <div class="intro-stamp" aria-hidden="true"><span>فكرة</span><b>←</b><span>حكاية</span></div>
+            </div>
             <!-- Pipeline Flow Stepper -->
             <div class="glass-panel p-5 rounded-2xl border border-slate-700/60">
                 <div class="flex items-center justify-between mb-4">
                     <span class="text-xs font-bold text-slate-300 flex items-center gap-2">
                         <i class="fa-solid fa-diagram-project text-sky-400"></i>
-                        <span>مخطط خط الإنتاج الذكي (Autonomous 8-Step Pipeline)</span>
+                        <span>محطات العمل</span>
                     </span>
-                    <span class="text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
-                        <i class="fa-solid fa-check ml-1"></i>جميع السيناريوهات مفعّلة
+                    <span class="module-note">
+                        ابدأ بفكرة، ثم راجع كل خطوة قبل اعتمادها
                     </span>
                 </div>
                 <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 text-center text-xs">
                     <div class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
-                        <div class="w-7 h-7 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center mx-auto mb-1.5"><i class="fa-solid fa-rss"></i></div>
-                        <span class="font-bold text-slate-200 text-[11px]">1. مسح الأخبار</span>
+                        <div class="w-7 h-7 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center mx-auto mb-1.5"><i class="fa-regular fa-lightbulb"></i></div>
+                        <span class="font-bold text-slate-200 text-[11px]">1. مكتبة الأفكار</span>
                     </div>
                     <div class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
-                        <div class="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto mb-1.5"><i class="fa-solid fa-brain"></i></div>
-                        <span class="font-bold text-slate-200 text-[11px]">2. تقييم 20 فكرة</span>
+                        <div class="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto mb-1.5"><i class="fa-solid fa-arrow-pointer"></i></div>
+                        <span class="font-bold text-slate-200 text-[11px]">2. اختيار الفكرة</span>
                     </div>
                     <div class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
-                        <div class="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto mb-1.5"><i class="fa-solid fa-table"></i></div>
-                        <span class="font-bold text-slate-200 text-[11px]">3. قاعدة البيانات</span>
+                        <div class="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto mb-1.5"><i class="fa-solid fa-pen-nib"></i></div>
+                        <span class="font-bold text-slate-200 text-[11px]">3. كتابة السكريبت</span>
                     </div>
                     <div class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
-                        <div class="w-7 h-7 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center mx-auto mb-1.5"><i class="fa-brands fa-telegram"></i></div>
-                        <span class="font-bold text-slate-200 text-[11px]">4. تحكم Telegram</span>
+                        <div class="w-7 h-7 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center mx-auto mb-1.5"><i class="fa-solid fa-volume-high"></i></div>
+                        <span class="font-bold text-slate-200 text-[11px]">4. التعليق الصوتي</span>
                     </div>
                     <div class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
-                        <div class="w-7 h-7 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center mx-auto mb-1.5"><i class="fa-solid fa-pen-nib"></i></div>
-                        <span class="font-bold text-slate-200 text-[11px]">5. سكريبت مصري</span>
+                        <div class="w-7 h-7 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center mx-auto mb-1.5"><i class="fa-solid fa-tags"></i></div>
+                        <span class="font-bold text-slate-200 text-[11px]">5. حزمة الظهور</span>
                     </div>
                     <div class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
-                        <div class="w-7 h-7 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center mx-auto mb-1.5"><i class="fa-solid fa-tags"></i></div>
-                        <span class="font-bold text-slate-200 text-[11px]">6. حزمة الـ SEO</span>
+                        <div class="w-7 h-7 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center mx-auto mb-1.5"><i class="fa-solid fa-image"></i></div>
+                        <span class="font-bold text-slate-200 text-[11px]">6. الصور المصغّرة</span>
                     </div>
                     <div class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
-                        <div class="w-7 h-7 rounded-lg bg-pink-500/20 text-pink-400 flex items-center justify-center mx-auto mb-1.5"><i class="fa-solid fa-image"></i></div>
-                        <span class="font-bold text-slate-200 text-[11px]">7. صور سينمائية</span>
+                        <div class="w-7 h-7 rounded-lg bg-pink-500/20 text-pink-400 flex items-center justify-center mx-auto mb-1.5"><i class="fa-solid fa-film"></i></div>
+                        <span class="font-bold text-slate-200 text-[11px]">7. معاينة الفيديو</span>
                     </div>
                     <div class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
                         <div class="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto mb-1.5"><i class="fa-solid fa-shield-halved"></i></div>
-                        <span class="font-bold text-slate-200 text-[11px]">8. بوابة الاعتماد</span>
+                        <span class="font-bold text-slate-200 text-[11px]">8. اعتماد الحزمة</span>
                     </div>
                 </div>
             </div>
@@ -161,12 +165,12 @@
                 <div class="glass-panel p-4 rounded-2xl border border-slate-800 flex flex-col justify-between">
                     <span class="text-xs text-slate-400">إجمالي المشاهدات</span>
                     <h3 id="kpi-total-views" class="text-2xl font-black text-amber-400 my-1">--</h3>
-                    <span class="text-[10px] text-emerald-400 font-medium">+35% نمو أسبوعي</span>
+                    <span class="text-[10px] text-slate-500 font-medium">من السجلات المتاحة</span>
                 </div>
                 <div class="glass-panel p-4 rounded-2xl border border-slate-800 flex flex-col justify-between">
                     <span class="text-xs text-slate-400">متوسط نسبة النقر (CTR)</span>
                     <h3 id="kpi-avg-ctr" class="text-2xl font-black text-indigo-400 my-1">--</h3>
-                    <span class="text-[10px] text-slate-500 font-medium">المعدل العام: 6-8%</span>
+                    <span class="text-[10px] text-slate-500 font-medium">من أرقام الأداء المسجلة</span>
                 </div>
                 <div class="glass-panel p-4 rounded-2xl border border-slate-800 flex flex-col justify-between">
                     <span class="text-xs text-slate-400">المشتركون الجدد</span>
@@ -179,6 +183,7 @@
                     <span class="text-[10px] text-slate-500 font-medium">ساعات مشاهدة فعلية</span>
                 </div>
             </div>
+            <p id="data-health-summary" class="text-xs text-slate-500" role="status">البيانات: جارٍ التحقق · الملفات: جارٍ التحقق</p>
 
             <!-- Dashboard Split View -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -207,24 +212,24 @@
                     <div class="space-y-3 text-xs">
                         <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
                             <span class="text-slate-400 block mb-0.5">النيش والجمهور المستهدف:</span>
-                            <span class="font-bold text-slate-200">Technology & Artificial Intelligence</span>
+                            <span class="font-bold text-slate-200">يتحدد من إعدادات مساحة العمل</span>
                         </div>
                         <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
                             <span class="text-slate-400 block mb-0.5">اللغة والنبرة:</span>
-                            <span class="font-bold text-emerald-400">Egyptian Tech Arabic (اللهجة المصرية المعاصرة)</span>
+                            <span class="font-bold text-emerald-400">يتحدد من إعدادات مساحة العمل</span>
                         </div>
                         <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
                             <span class="text-slate-400 block mb-0.5">الهوية البصرية والألوان:</span>
                             <div class="flex items-center space-x-2 space-x-reverse mt-1.5">
-                                <span class="w-5 h-5 rounded-md bg-[#0F172A] border border-slate-700" title="#0F172A"></span>
-                                <span class="w-5 h-5 rounded-md bg-[#38BDF8]" title="#38BDF8"></span>
-                                <span class="w-5 h-5 rounded-md bg-[#818CF8]" title="#818CF8"></span>
-                                <span class="text-[11px] font-mono text-slate-400 mr-2">Dark Slate, Electric Cyan, Indigo</span>
+                                <span class="w-5 h-5 rounded-md border border-slate-700" style="background:#30483a" title="أخضر صنوبرى"></span>
+                                <span class="w-5 h-5 rounded-md" style="background:#b75e43" title="طيني"></span>
+                                <span class="w-5 h-5 rounded-md" style="background:#d7bd7a" title="ذهبي هادئ"></span>
+                                <span class="text-[11px] font-mono text-slate-400 mr-2">ورق، أخضر صنوبرى، وطين</span>
                             </div>
                         </div>
                         <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-                            <span class="text-slate-400 block mb-0.5">قاعدة البيانات السحابية والمحلية:</span>
-                            <span class="font-bold text-slate-200">Google Sheets / AI_Content_Factory_Database.xlsx</span>
+                            <span class="text-slate-400 block mb-0.5">قاعدة البيانات:</span>
+                            <span class="font-bold text-slate-200">Firestore عند الربط · CSV محليًا</span>
                         </div>
                     </div>
                 </div>
@@ -307,12 +312,13 @@
                     </div>
                 </div>
 
-                <!-- 5 Supported Platforms -->
+                <p class="text-sm text-slate-600">حالة النشر: تجهيز المحتوى والمراجعة متاحان. النشر المباشر للمنصات يحتاج ربط الحساب وموافقة المنصة.</p>
+                <!-- Platform readiness -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 my-6">
                     <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
                         <div class="flex items-center justify-between">
                             <i class="fa-brands fa-youtube text-2xl text-rose-500"></i>
-                            <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">YouTube API</span>
+                            <span class="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 font-bold">يحتاج ربطًا</span>
                         </div>
                         <h4 class="font-bold text-sm text-slate-200">YouTube Long</h4>
                         <p class="text-[11px] text-slate-400">فيديو طويل بدقة 4K مع صورة 1280x720 وتوقيتات الفصول والتاجز.</p>
@@ -320,7 +326,7 @@
                     <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
                         <div class="flex items-center justify-between">
                             <i class="fa-brands fa-youtube text-2xl text-rose-400"></i>
-                            <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">Shorts API</span>
+                            <span class="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 font-bold">يحتاج ربطًا</span>
                         </div>
                         <h4 class="font-bold text-sm text-slate-200">YouTube Shorts</h4>
                         <p class="text-[11px] text-slate-400">فيديو رأسي 9:16 مدة 60 ثانية مع غلاف رأسي 1080x1920.</p>
@@ -328,7 +334,7 @@
                     <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
                         <div class="flex items-center justify-between">
                             <i class="fa-brands fa-tiktok text-2xl text-cyan-400"></i>
-                            <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">TikTok API</span>
+                            <span class="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 font-bold">يحتاج ربطًا</span>
                         </div>
                         <h4 class="font-bold text-sm text-slate-200">TikTok</h4>
                         <p class="text-[11px] text-slate-400">وصف مكثف 150 حرف وهاشتاجات تريند وموسيقى أصلية.</p>
@@ -336,7 +342,7 @@
                     <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
                         <div class="flex items-center justify-between">
                             <i class="fa-brands fa-instagram text-2xl text-pink-500"></i>
-                            <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">Graph API</span>
+                            <span class="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 font-bold">يحتاج ربطًا</span>
                         </div>
                         <h4 class="font-bold text-sm text-slate-200">Instagram Reels</h4>
                         <p class="text-[11px] text-slate-400">كابشن تفاعلي يدعو للمتابعة وحفظ الريلز في المجموعات.</p>
@@ -344,7 +350,7 @@
                     <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
                         <div class="flex items-center justify-between">
                             <i class="fa-brands fa-facebook text-2xl text-blue-500"></i>
-                            <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">Pages API</span>
+                            <span class="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 font-bold">يحتاج ربطًا</span>
                         </div>
                         <h4 class="font-bold text-sm text-slate-200">Facebook Reels</h4>
                         <p class="text-[11px] text-slate-400">جدولة عبر Meta Business مع استهداف المنطقة العربية ومصر.</p>
@@ -366,7 +372,7 @@
                             <i class="fa-solid fa-chart-column text-sky-400"></i>
                             <span>مقارنة المشاهدات ونسبة النقر للظهور (Views & CTR per Video)</span>
                         </h3>
-                        <span class="text-xs text-slate-400">البيانات الحية من Analytics.csv</span>
+                        <span class="text-xs text-slate-400">الأرقام المسجلة من مصادر موثوقة فقط</span>
                     </div>
                     <div class="h-64 w-full">
                         <canvas id="analyticsChart"></canvas>
@@ -431,13 +437,21 @@
         <!-- ========================================== -->
         <section id="tab-settings" class="tab-content hidden space-y-6">
             <div class="glass-panel p-6 rounded-2xl border border-slate-700/60 space-y-6 max-w-4xl mx-auto">
+                <div id="admin-access-panel" class="hidden rounded-xl border border-amber-300 bg-amber-50 p-4" role="group" aria-labelledby="admin-access-label">
+                    <label id="admin-access-label" for="admin-access-token" class="block text-sm font-bold text-slate-800">رمز دخول مدير التطبيق</label>
+                    <p class="mt-1 text-xs text-slate-600">تحتاجه فقط إذا كان المشرف قد فعّل APP_ADMIN_TOKEN على الاستضافة. يُحفظ في هذه الجلسة فقط.</p>
+                    <div class="mt-3 flex gap-2">
+                        <input id="admin-access-token" type="password" autocomplete="current-password" class="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2" placeholder="أدخل رمز الإدارة">
+                        <button id="admin-access-submit" type="button" class="rounded-lg bg-emerald-900 px-4 py-2 font-bold text-white">دخول</button>
+                    </div>
+                </div>
                 <div class="flex items-center justify-between pb-4 border-b border-slate-800">
                     <div>
                         <h2 class="text-lg font-bold text-white flex items-center gap-2">
                             <i class="fa-solid fa-sliders text-sky-400"></i>
-                            <span>إعدادات النظام والنيش والهوية (Settings.csv)</span>
+                            <span>إعدادات مساحة العمل</span>
                         </h2>
-                        <p class="text-xs text-slate-400 mt-1">تؤثر هذه الإعدادات مباشرة على برومبتات الذكاء الاصطناعي وتوليد الأفكار والألوان.</p>
+                        <p class="text-xs text-slate-400 mt-1">أضف مفاتيح الخدمات من Environment Variables في Vercel؛ لا تحفظ المفاتيح السرية هنا.</p>
                     </div>
                     <button onclick="saveAllSettings()" class="px-5 py-2.5 rounded-xl bg-gradient-to-l from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs shadow-md transition flex items-center space-x-2 space-x-reverse">
                         <i class="fa-solid fa-floppy-disk"></i>
@@ -454,20 +468,18 @@
     </main>
 
     <!-- Footer -->
-    <footer class="border-t border-slate-800/80 bg-[#070d18] px-6 py-4 mt-auto text-xs text-slate-500">
+    <footer class="border-t border-slate-800/80 px-6 py-4 mt-auto text-xs text-slate-500">
         <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-            <span>منظومة مصنع المحتوى الذكي (AI Content Factory) &copy; 2026 - جميع الحقوق محفوظة</span>
+            <span>مِداد · مساحة مستقلة لصناعة المحتوى &copy; 2026</span>
             <div class="flex items-center space-x-4 space-x-reverse font-mono text-[11px]">
-                <span>Make.com Scenarios</span>
+                <span>مساحة التحرير</span>
                 <span>•</span>
-                <span>FastAPI + Python 3.14</span>
-                <span>•</span>
-                <span>Telegram Bot Control</span>
+                <span>صُنع لسهولة المراجعة</span>
             </div>
         </div>
     </footer>
 
     <!-- App JavaScript -->
-    <script src="/static/js/app.js"></script>
+    <script defer src="/static/js/app.js"></script>
 </body>
 </html>

@@ -104,6 +104,7 @@ class PublishingEngine:
 
         return {
             "status": "SUCCESS_PREPARED",
+            "message": "تم إعداد بيانات النشر للمراجعة. لا يوجد نشر مباشر؛ اربط حساب المنصة لإتمامه.",
             "idea_id": idea_id,
             "manifest": platforms_payload
         }

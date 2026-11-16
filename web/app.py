@@ -46,6 +46,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def require_admin_token(request: Request, call_next):
+    """Protect API endpoints when a deployment admin token is configured."""
+    from core.config import Config as AppConfig
+    if request.url.path == "/api/auth/status":
+        return await call_next(request)
+    if AppConfig.APP_ADMIN_TOKEN and request.url.path.startswith("/api/"):
+        supplied = request.headers.get("authorization", "")
+        if not supplied.startswith("Bearer ") or not __import__("hmac").compare_digest(
+            supplied[7:], AppConfig.APP_ADMIN_TOKEN
+        ):
+            return JSONResponse({"detail": "يلزم تسجيل الدخول قبل استخدام التطبيق."}, status_code=401)
+    return await call_next(request)
+
 # Directories
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 try:
@@ -70,6 +84,13 @@ async def serve_thumbnail(idea_id: str, filename: str):
     fallback = BASE_DIR / "storage" / "AI Content Factory" / "2026" / idea_id / "Thumbnails" / filename
     if fallback.exists() and fallback.is_file():
         return FileResponse(fallback)
+    from core.r2_storage import get_file, enabled
+    if enabled():
+        try:
+            obj = get_file(f"{idea_id}/Thumbnails/{filename}")
+            return Response(content=obj["Body"].read(), media_type=obj.get("ContentType", "image/jpeg"))
+        except Exception:
+            pass
     raise HTTPException(status_code=404, detail="Thumbnail not found")
 
 @app.get("/api/audio/{idea_id}/{filename}")
@@ -83,6 +104,13 @@ async def serve_audio(idea_id: str, filename: str):
     fallback = BASE_DIR / "storage" / "AI Content Factory" / "2026" / idea_id / "Audio" / filename
     if fallback.exists() and fallback.is_file():
         return FileResponse(fallback, media_type="audio/wav" if fallback.suffix.lower() == ".wav" else "audio/mpeg")
+    from core.r2_storage import get_file, enabled
+    if enabled():
+        try:
+            obj = get_file(f"{idea_id}/Audio/{filename}")
+            return Response(content=obj["Body"].read(), media_type=obj.get("ContentType", "audio/mpeg"))
+        except Exception:
+            pass
     raise HTTPException(status_code=404, detail="Audio file not found")
 
 @app.get("/api/video/{idea_id}/{filename}")
@@ -96,6 +124,13 @@ async def serve_video(idea_id: str, filename: str):
     fallback = BASE_DIR / "storage" / "AI Content Factory" / "2026" / idea_id / "Video_Assets" / filename
     if fallback.exists() and fallback.is_file():
         return FileResponse(fallback, media_type="video/mp4")
+    from core.r2_storage import get_file, enabled
+    if enabled():
+        try:
+            obj = get_file(f"{idea_id}/Video_Assets/{filename}")
+            return Response(content=obj["Body"].read(), media_type="video/mp4")
+        except Exception:
+            pass
     raise HTTPException(status_code=404, detail="Video file not found")
 
 @app.get("/api/scene-frame/{idea_id}/{filename}")
@@ -155,7 +190,10 @@ async def serve_index():
     if not index_file.exists():
         return HTMLResponse("<h1>AI Content Factory Dashboard loading...</h1>")
     with open(index_file, "r", encoding="utf-8") as f:
-        return HTMLResponse(content=f.read())
+        content = f.read()
+    if Config.APP_ADMIN_TOKEN:
+        content = content.replace('<div id="admin-access-panel" class="hidden', '<div id="admin-access-panel" class="')
+    return HTMLResponse(content=content)
 
 
 @app.get("/api/overview")
@@ -174,9 +212,13 @@ async def get_overview():
     total_subs = sum(int(float(r.get("Subscribers Growth", 0) or 0)) for r in analytics_records)
     avg_ctr = round(sum(float(r.get("CTR (%)", 0) or 0) for r in analytics_records) / (len(analytics_records) or 1), 1)
 
+    from core.firestore_store import health as firestore_health
+    from core.r2_storage import health as r2_health
     return {
         "status": "online",
-        "system_time": "2026-11-15T21:42:00+02:00",
+        "system_time": __import__("datetime").datetime.now().astimezone().isoformat(timespec="seconds"),
+        "data_store": firestore_health(),
+        "file_store": r2_health(),
         "kpis": {
             "total_ideas": total_ideas,
             "short_ideas": short_count,
@@ -185,7 +227,8 @@ async def get_overview():
             "total_views": total_views,
             "total_watch_hours": round(total_watch / 60, 1),
             "total_subscribers": total_subs,
-            "avg_ctr": avg_ctr
+            "avg_ctr": avg_ctr,
+            "has_analytics": bool(analytics_records)
         },
         "config": {
             "niche": Config.NICHE,
@@ -213,7 +256,7 @@ async def list_ideas(
         kw = search.strip().lower()
         filtered = [
             i for i in filtered 
-            if kw in i.get("Video Title", "").lower() 
+            if kw in i.get("Video Title", "").lower()
             or kw in i.get("Video Summary", "").lower()
             or kw in i.get("SEO Keywords", "").lower()
         ]
@@ -366,7 +409,7 @@ def generate_production_package(payload: Dict[str, Any] = Body(...)):
         raise HTTPException(status_code=400, detail="idea_id is required")
 
     ideas = idea_engine.get_all_ideas()
-    selected_idea = next((i for i in ideas if i.get("Idea ID") == idea_id), None)
+    selected_idea = next((i for i in ideas if (i.get("Idea ID") or i.get("idea_id")) == idea_id), None)
     if not selected_idea:
         raise HTTPException(status_code=404, detail=f"Idea {idea_id} not found in database")
 
@@ -378,15 +421,15 @@ def generate_production_package(payload: Dict[str, Any] = Body(...)):
 
     # Map database row format to engine format
     idea_dict = {
-        "idea_id": selected_idea.get("Idea ID"),
-        "video_title": selected_idea.get("Video Title"),
-        "video_summary": selected_idea.get("Video Summary"),
-        "target_audience": selected_idea.get("Target Audience"),
-        "hook": selected_idea.get("Hook"),
-        "content_angle": selected_idea.get("Content Angle"),
-        "video_type": selected_idea.get("Video Type", "Short-form"),
-        "estimated_duration": selected_idea.get("Estimated Duration", "60 ثانية"),
-        "seo_keywords": [k.strip() for k in selected_idea.get("SEO Keywords", "").split(",") if k.strip()]
+        "idea_id": selected_idea.get("Idea ID") or selected_idea.get("idea_id"),
+        "video_title": selected_idea.get("Video Title") or selected_idea.get("video_title", ""),
+        "video_summary": selected_idea.get("Video Summary") or selected_idea.get("video_summary", ""),
+        "target_audience": selected_idea.get("Target Audience") or selected_idea.get("target_audience", ""),
+        "hook": selected_idea.get("Hook") or selected_idea.get("hook", ""),
+        "content_angle": selected_idea.get("Content Angle") or selected_idea.get("content_angle", ""),
+        "video_type": selected_idea.get("Video Type") or selected_idea.get("video_type", "Short-form"),
+        "estimated_duration": selected_idea.get("Estimated Duration") or selected_idea.get("estimated_duration", "60 ثانية"),
+        "seo_keywords": [k.strip() for k in (selected_idea.get("SEO Keywords") or ", ".join(selected_idea.get("seo_keywords", []))).split(",") if k.strip()]
     }
 
     stage = "السكريبت"
@@ -446,9 +489,15 @@ def generate_production_package(payload: Dict[str, Any] = Body(...)):
 
         # 8. Update status in Ideas.csv
         idea_engine.update_idea_status(idea_id, "Ready for Production")
+        try:
+            r2_sync = storage_engine.sync_to_r2(idea_id)
+        except Exception as storage_error:
+            print(f"R2 upload warning for {idea_id}: {type(storage_error).__name__}")
+            r2_sync = {"configured": True, "uploaded": 0, "error": "cloud storage sync failed"}
 
         return {
             "success": True,
+            "file_storage": r2_sync,
             "idea_id": idea_id,
             "message": "Full production package generated: Script, SEO, Real AI Thumbnails, Egyptian Voiceover, and Ready-to-Publish Video.",
             "script": script_to_use,
@@ -615,6 +664,11 @@ async def get_settings():
                         "notes": row[3].strip() if len(row) > 3 else ""
                     }
     return settings_dict
+
+
+@app.get("/api/auth/status")
+async def auth_status():
+    return {"required": bool(Config.APP_ADMIN_TOKEN)}
 
 
 @app.post("/api/settings")

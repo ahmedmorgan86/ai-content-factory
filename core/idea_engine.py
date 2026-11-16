@@ -17,6 +17,9 @@ class IdeaEngine:
     def get_existing_titles(self):
         """Reads previously generated idea titles to prevent duplication."""
         titles = set()
+        cloud_ideas = __import__("core.firestore_store", fromlist=["get_ideas"]).get_ideas()
+        if cloud_ideas is not None:
+            return {str(row.get("Video Title") or row.get("video_title") or "").strip().lower() for row in cloud_ideas}
         if not self.ideas_csv.exists():
             return titles
         with open(self.ideas_csv, mode="r", encoding="utf-8-sig") as f:
@@ -34,19 +37,14 @@ class IdeaEngine:
         max_idx = 0
         current_year = datetime.datetime.now().year
         prefix = f"IDEA-{current_year}-"
-        if not self.ideas_csv.exists():
-            return 0
-        with open(self.ideas_csv, mode="r", encoding="utf-8-sig") as f:
-            reader = csv.reader(f)
-            header = next(reader, None)
-            for row in reader:
-                if row and len(row) > 0 and row[0].startswith(prefix):
-                    try:
-                        idx = int(row[0].replace(prefix, ""))
-                        if idx > max_idx:
-                            max_idx = idx
-                    except ValueError:
-                        pass
+        ideas = self.get_all_ideas()
+        for row in ideas:
+            idea_id = str(row.get("Idea ID") or row.get("idea_id") or "")
+            if idea_id.startswith(prefix):
+                try:
+                    max_idx = max(max_idx, int(idea_id.replace(prefix, "")))
+                except ValueError:
+                    pass
         return max_idx
 
     def synthesize_unique_idea(self, index, existing_titles, current_batch_titles):
@@ -484,6 +482,11 @@ class IdeaEngine:
         """Appends generated ideas to Ideas.csv and syncs with Excel."""
         if not ideas:
             return 0
+
+        store = __import__("core.firestore_store", fromlist=["put_ideas"])
+        if store.enabled():
+            store.put_ideas(ideas)
+            return len(ideas)
             
         file_exists = self.ideas_csv.exists()
         headers = [
@@ -527,6 +530,19 @@ class IdeaEngine:
 
     def get_all_ideas(self):
         """Reads all ideas from Ideas.csv."""
+        cloud_ideas = __import__("core.firestore_store", fromlist=["get_ideas"]).get_ideas()
+        if cloud_ideas is not None:
+            for item in cloud_ideas:
+                item.setdefault("Idea ID", item.get("idea_id", ""))
+                item.setdefault("Video Title", item.get("video_title", ""))
+                item.setdefault("Video Summary", item.get("video_summary", ""))
+                item.setdefault("Target Audience", item.get("target_audience", ""))
+                item.setdefault("Hook", item.get("hook", ""))
+                item.setdefault("Video Type", item.get("video_type", "Short-form"))
+                item.setdefault("Priority Score", item.get("priority_score", ""))
+                item.setdefault("SEO Keywords", ", ".join(item.get("seo_keywords", [])) if isinstance(item.get("seo_keywords"), list) else item.get("seo_keywords", ""))
+                item.setdefault("Status", item.get("status", "New"))
+            return cloud_ideas
         ideas = []
         if not self.ideas_csv.exists():
             return ideas
@@ -539,6 +555,9 @@ class IdeaEngine:
 
     def update_idea_status(self, idea_id, new_status):
         """Updates the status of an idea in Ideas.csv and syncs Excel."""
+        store = __import__("core.firestore_store", fromlist=["update_idea_status"])
+        if store.enabled():
+            return store.update_idea_status(idea_id, new_status)
         if not self.ideas_csv.exists():
             return False
         rows = []

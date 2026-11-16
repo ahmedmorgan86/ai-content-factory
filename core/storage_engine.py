@@ -12,6 +12,7 @@ Manages local and Google Drive folder hierarchies under:
 
 import os
 import json
+import mimetypes
 from pathlib import Path
 from core.config import STORAGE_ROOT
 
@@ -55,6 +56,22 @@ class StorageEngine:
             json.dump(script_data["scene_breakdown"], f, ensure_ascii=False, indent=2)
             
         return str(md_file), str(json_file)
+
+    def sync_to_r2(self, idea_id):
+        """Upload generated assets to R2; a no-op while R2 is not configured."""
+        from core.r2_storage import enabled, put_file
+        if not enabled():
+            return {"uploaded": 0, "configured": False}
+        root = self.root_dir / idea_id
+        uploaded = 0
+        for path in root.rglob("*"):
+            if not path.is_file():
+                continue
+            relative = path.relative_to(root).as_posix()
+            content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+            put_file(path, f"{idea_id}/{relative}", content_type)
+            uploaded += 1
+        return {"uploaded": uploaded, "configured": True}
 
     def save_seo_asset(self, idea_id, seo_data):
         """Saves SEO metadata JSON and copyable text file to /SEO."""
