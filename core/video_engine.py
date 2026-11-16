@@ -141,18 +141,23 @@ class VideoEngine:
         extension = "wav" if voice_key.startswith("google_") else "mp3"
         audio_path = audio_dir / f"voiceover_{idea_id}_{voice_key}.{extension}"
         if not audio_path.exists():
-            voice_res = self.voice_engine.generate_voiceover(
-                idea_id=idea_id,
-                text=full_voiceover,
-                voice_key=voice_key,
-                output_dir=audio_dir,
-                video_type=voice_type
-            )
-            audio_path = Path(voice_res["file_path"])
+            # try any existing voiceover for this idea
+            candidates = sorted([*audio_dir.glob(f"voiceover_{idea_id}_*.wav"), *audio_dir.glob(f"voiceover_{idea_id}_*.mp3")], key=lambda p: p.stat().st_mtime, reverse=True) if audio_dir.exists() else []
+            if candidates:
+                audio_path = candidates[0]
+            else:
+                voice_res = self.voice_engine.generate_voiceover(
+                    idea_id=idea_id,
+                    text=full_voiceover,
+                    voice_key=voice_key,
+                    output_dir=audio_dir,
+                    video_type=voice_type
+                )
+                audio_path = Path(voice_res["file_path"])
 
         # Measure audio duration
         audio_clip = AudioFileClip(str(audio_path))
-        total_audio_duration = audio_clip.duration
+        total_audio_duration = audio_clip.duration or 0
         if total_audio_duration <= 0:
             total_audio_duration = 30.0
 

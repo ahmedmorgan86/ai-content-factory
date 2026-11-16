@@ -11,6 +11,25 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 IS_VERCEL = bool(os.getenv("VERCEL"))
 
+def _load_dotenv(path: Path):
+    """Lightweight .env loader so local runs can pick up saved keys without extra deps."""
+    if not path.exists():
+        return
+    try:
+        for raw in path.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            k = k.strip()
+            v = v.strip().strip('"').strip("'")
+            if k and (k not in os.environ or os.environ.get(k, "") == ""):
+                os.environ[k] = v
+    except Exception:
+        pass
+
+_load_dotenv(BASE_DIR / ".env")
+
 if IS_VERCEL:
     TMP_ROOT = Path("/tmp/ai-content-factory")
     DB_DIR = TMP_ROOT / "database"
@@ -90,5 +109,30 @@ class Config:
                     elif k == "ideas_per_batch": cls.IDEAS_PER_BATCH = int(v) if v.isdigit() else 20
                     elif k == "content_style": cls.CONTENT_STYLE = v
                     elif k == "brand_identity": cls.BRAND_IDENTITY = v
+
+    @classmethod
+    def set_runtime_env(cls, updates: dict):
+        env_path = BASE_DIR / ".env"
+        existing = {}
+        if env_path.exists():
+            try:
+                for raw in env_path.read_text(encoding="utf-8").splitlines():
+                    if "=" in raw and not raw.strip().startswith("#"):
+                        k, v = raw.split("=", 1)
+                        existing[k.strip()] = v
+            except Exception:
+                existing = {}
+        for k, v in updates.items():
+            if v is None:
+                continue
+            os.environ[k] = str(v)
+            existing[k] = str(v)
+            if hasattr(cls, k):
+                setattr(cls, k, str(v))
+        try:
+            lines = [f"{k}={v}" for k, v in existing.items()]
+            env_path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+        except Exception:
+            pass
 
 Config.load_from_settings_csv()

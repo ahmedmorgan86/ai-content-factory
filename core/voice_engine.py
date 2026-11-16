@@ -133,8 +133,8 @@ class VoiceEngine:
 
     def generate_voiceover(self, idea_id, text, voice_key="shakir", output_dir=None, rate="+0%", video_type="Short-form"):
         """
-        Synthesizes authentic Egyptian voiceover for a given script text.
-        Saves the audio file as MP3 and records metadata in database/Audio.csv.
+        Synthesizes Egyptian voiceover for a given script text.
+        Prefers Google Gemini voices when configured; falls back to Edge TTS when unavailable.
         """
         if not text or not text.strip():
             raise ValueError("Voiceover text cannot be empty.")
@@ -144,8 +144,11 @@ class VoiceEngine:
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        if voice_key not in VOICE_PROFILES:
-            raise ValueError(f"Unsupported voice profile: {voice_key}")
+        requested_key = voice_key if voice_key in VOICE_PROFILES else "shakir"
+        # Automatic fallback: Google voices require API key and working access.
+        if requested_key in GOOGLE_VOICES and not Config.GEMINI_API_KEY:
+            requested_key = "salma" if "Short" in (video_type or "") else "shakir"
+        voice_key = requested_key
         voice_info = VOICE_PROFILES[voice_key]
         voice_id = voice_info["id"]
 
@@ -154,7 +157,6 @@ class VoiceEngine:
         filename = f"voiceover_{idea_id}_{voice_key}.{extension}"
         output_path = output_dir / filename
 
-        # Run edge-tts synthesis safely across sync and async contexts
         try:
             if use_google:
                 extension = self._synthesize_gemini(text, voice_key, video_type, output_path)
@@ -164,17 +166,35 @@ class VoiceEngine:
                         lambda: asyncio.run(self._synthesize_edge_tts(text, voice_id, output_path, rate=rate))
                     ).result()
         except Exception as e:
-            raise RuntimeError(f"Audio synthesis failed: {e}")
+            # Fallback from Google TTS to Edge TTS on runtime failure.
+            if use_google:
+                fallback_key = "salma" if "Short" in (video_type or "") else "shakir"
+                voice_key = fallback_key
+                voice_info = VOICE_PROFILES[voice_key]
+                voice_id = voice_info["id"]
+                use_google = False
+                extension = "mp3"
+                filename = f"voiceover_{idea_id}_{voice_key}.{extension}"
+                output_path = output_dir / filename
+                try:
+                    with ThreadPoolExecutor(max_workers=1) as executor:
+                        executor.submit(
+                            lambda: asyncio.run(self._synthesize_edge_tts(text, voice_id, output_path, rate=rate))
+                        ).result()
+                except Exception as e2:
+                    raise RuntimeError(f"Audio synthesis failed (Google + Edge fallback): {e2}") from e2
+            else:
+                raise RuntimeError(f"Audio synthesis failed: {e}") from e
 
         if not output_path.exists() or output_path.stat().st_size == 0:
             raise RuntimeError(f"Voiceover generation failed: File was not created at {output_path}")
 
-        # Compute duration estimate or use audio file length
+        # normalize filename/extension if changed
+        filename = output_path.name
         audio_size = output_path.stat().st_size
         word_count = len(text.split())
         est_duration = round(word_count / 2.3, 1)
 
-        # Try to get exact duration via moviepy / mutagen if possible
         actual_duration = est_duration
         try:
             from moviepy import AudioFileClip
@@ -208,7 +228,8 @@ class VoiceEngine:
             "filename": filename,
             "file_size": audio_size,
             "duration_seconds": actual_duration,
-            "status": "Ready"
+            "status": "Ready",
+            "voice_key": voice_key,
         }
 
     def save_audio_to_database(self, record):
