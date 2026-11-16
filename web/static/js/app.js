@@ -633,8 +633,15 @@ async function runProductionForSelected(ideaId) {
             body: JSON.stringify({ idea_id: ideaId })
         });
         if (!res.ok) {
-            const errBody = await res.text();
-            throw new Error(`(${res.status}): ${errBody || res.statusText}`);
+            let message = res.statusText;
+            try {
+                const errorData = await res.json();
+                message = errorData.detail || errorData.message || message;
+            } catch (_) {
+                const errBody = await res.text();
+                message = errBody || message;
+            }
+            throw new Error(`(${res.status}): ${message}`);
         }
         const data = await res.json();
         if (data.success) {
@@ -659,6 +666,7 @@ async function approvePublishing(ideaId) {
             body: JSON.stringify({ idea_id: ideaId, approved: true })
         });
         const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || data.message || res.statusText);
         if (data.status === 'SUCCESS_PREPARED') {
             showToast('تم اعتماد حزمة الفيديو وتجهيز النشر للمنصات الخمس بنجاح!', 'success');
             await openStudio(ideaId);

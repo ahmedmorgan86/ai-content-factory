@@ -40,8 +40,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=[os.getenv("APP_ORIGIN", "http://127.0.0.1:8000"), "http://localhost:8000"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -62,6 +62,8 @@ if STATIC_DIR.exists():
 @app.get("/api/thumbnail/{idea_id}/{filename}")
 async def serve_thumbnail(idea_id: str, filename: str):
     """Serves generated thumbnail file safely across local and serverless environments."""
+    if Path(idea_id).name != idea_id or Path(filename).name != filename:
+        raise HTTPException(status_code=400, detail="Invalid asset path")
     target = STORAGE_ROOT / idea_id / "Thumbnails" / filename
     if target.exists() and target.is_file():
         return FileResponse(target)
@@ -73,6 +75,8 @@ async def serve_thumbnail(idea_id: str, filename: str):
 @app.get("/api/audio/{idea_id}/{filename}")
 async def serve_audio(idea_id: str, filename: str):
     """Serves generated VoxArabic voiceover audio file."""
+    if Path(idea_id).name != idea_id or Path(filename).name != filename:
+        raise HTTPException(status_code=400, detail="Invalid asset path")
     target = STORAGE_ROOT / idea_id / "Audio" / filename
     if target.exists() and target.is_file():
         return FileResponse(target, media_type="audio/wav" if target.suffix.lower() == ".wav" else "audio/mpeg")
@@ -84,6 +88,8 @@ async def serve_audio(idea_id: str, filename: str):
 @app.get("/api/video/{idea_id}/{filename}")
 async def serve_video(idea_id: str, filename: str):
     """Serves rendered MP4 ready-to-publish video file."""
+    if Path(idea_id).name != idea_id or Path(filename).name != filename:
+        raise HTTPException(status_code=400, detail="Invalid asset path")
     target = STORAGE_ROOT / idea_id / "Video_Assets" / filename
     if target.exists() and target.is_file():
         return FileResponse(target, media_type="video/mp4")
@@ -95,6 +101,8 @@ async def serve_video(idea_id: str, filename: str):
 @app.get("/api/scene-frame/{idea_id}/{filename}")
 async def serve_scene_frame(idea_id: str, filename: str):
     """Serves generated AI scene visual frame."""
+    if Path(idea_id).name != idea_id or Path(filename).name != filename:
+        raise HTTPException(status_code=400, detail="Invalid asset path")
     target = STORAGE_ROOT / idea_id / "Video_Assets" / filename
     if target.exists() and target.is_file():
         return FileResponse(target, media_type="image/jpeg")
@@ -107,13 +115,17 @@ async def serve_scene_frame(idea_id: str, filename: str):
 async def serve_storage_file(file_path: str):
     """Serves files from storage safely across local and Vercel environments."""
     from core.config import IS_VERCEL
-    if IS_VERCEL:
-        tmp_target = Path("/tmp/ai-content-factory/storage") / file_path
-        if tmp_target.exists() and tmp_target.is_file():
-            return FileResponse(tmp_target)
-    local_target = (BASE_DIR / "storage") / file_path
-    if local_target.exists() and local_target.is_file():
-        return FileResponse(local_target)
+    if Path(file_path).is_absolute():
+        raise HTTPException(status_code=400, detail="Invalid storage path")
+    roots = [Path("/tmp/ai-content-factory/storage"), BASE_DIR / "storage"] if IS_VERCEL else [BASE_DIR / "storage"]
+    for root in roots:
+        candidate = (root / file_path).resolve()
+        try:
+            candidate.relative_to(root.resolve())
+        except ValueError:
+            continue
+        if candidate.exists() and candidate.is_file():
+            return FileResponse(candidate)
     raise HTTPException(status_code=404, detail="File not found")
 
 # Initialize engines
@@ -229,6 +241,8 @@ async def generate_ideas_batch():
 @app.get("/api/production/{idea_id}")
 async def get_production_package(idea_id: str):
     """Retrieves all produced assets for a specific idea ID."""
+    if Path(idea_id).name != idea_id or idea_id in {".", ".."}:
+        raise HTTPException(status_code=400, detail="Invalid idea_id")
     video_dir = STORAGE_ROOT / idea_id
     if not video_dir.exists():
         # Check if idea exists in database
@@ -356,6 +370,12 @@ def generate_production_package(payload: Dict[str, Any] = Body(...)):
     if not selected_idea:
         raise HTTPException(status_code=404, detail=f"Idea {idea_id} not found in database")
 
+    if not Config.GEMINI_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="خدمة التعليق الصوتي غير مهيأة: أضف GEMINI_API_KEY إلى متغيرات Vercel ثم أعد النشر.",
+        )
+
     # Map database row format to engine format
     idea_dict = {
         "idea_id": selected_idea.get("Idea ID"),
@@ -432,7 +452,8 @@ def generate_production_package(payload: Dict[str, Any] = Body(...)):
             "video": video_res
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
+        print(f"Production generation failed for {idea_id}: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail=f"فشل إنتاج الحزمة للفكرة {idea_id}. راجع سجل الخادم للتفاصيل.")
 
 
 @app.post("/api/voice/generate")
@@ -498,6 +519,8 @@ async def approve_and_dispatch(payload: Dict[str, Any] = Body(...)):
     approved = payload.get("approved", True)
     if not idea_id:
         raise HTTPException(status_code=400, detail="idea_id is required")
+    if approved is not True:
+        raise HTTPException(status_code=400, detail="Explicit approval is required.")
 
     # Fetch production package
     prod = await get_production_package(idea_id)
