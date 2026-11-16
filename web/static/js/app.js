@@ -172,9 +172,16 @@ function initNavigation() {
 
 function switchTab(tabId) {
     state.currentTab = tabId;
+    const activeEl = document.activeElement;
     document.querySelectorAll('.tab-content').forEach(section => {
+        if (activeEl && section.contains(activeEl)) {
+            const tabButton = document.getElementById(`nav-tab-${tabId}`);
+            if (tabButton) tabButton.focus();
+            else if (activeEl.blur) activeEl.blur();
+        }
         section.classList.add('hidden');
         section.setAttribute('aria-hidden', 'true');
+        section.setAttribute('inert', '');
     });
     const targetSection = document.getElementById(`tab-${tabId}`);
     if (targetSection) {
@@ -183,19 +190,13 @@ function switchTab(tabId) {
         targetSection.tabIndex = 0;
         targetSection.setAttribute('aria-labelledby', `nav-tab-${tabId}`);
         targetSection.setAttribute('aria-hidden', 'false');
+        targetSection.removeAttribute('inert');
     }
 
     document.querySelectorAll('.nav-tab').forEach(tab => {
         const selected = tab.dataset.tab === tabId;
         tab.setAttribute('aria-selected', String(selected));
         tab.tabIndex = selected ? 0 : -1;
-        if (tab.dataset.tab === tabId) {
-            tab.classList.add('bg-sky-500/20', 'text-sky-400', 'border-sky-500/50');
-            tab.classList.remove('text-slate-400', 'border-transparent');
-        } else {
-            tab.classList.remove('bg-sky-500/20', 'text-sky-400', 'border-sky-500/50');
-            tab.classList.add('text-slate-400', 'border-transparent');
-        }
     });
 
     if (tabId === 'analytics') {
