@@ -68,6 +68,11 @@ class Config:
     CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME", "")
     CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY", "")
     CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET", "")
+    # GitHub storage (optional, e.g. for free asset persistence on Vercel)
+    GITHUB_STORAGE_TOKEN = os.getenv("GITHUB_STORAGE_TOKEN", "")
+    GITHUB_STORAGE_REPO = os.getenv("GITHUB_STORAGE_REPO", "")  # owner/repo
+    GITHUB_STORAGE_BRANCH = os.getenv("GITHUB_STORAGE_BRANCH", "main")
+    GITHUB_STORAGE_PATH = os.getenv("GITHUB_STORAGE_PATH", "storage-assets")
     TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
     YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "")
     # Firestore is an optional durable metadata store. Local development keeps

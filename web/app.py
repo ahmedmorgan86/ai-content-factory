@@ -83,7 +83,7 @@ if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 def _serve_cloud_file(object_key: str, default_media_type: str):
-    for mod_name in ("core.firebase_storage", "core.r2_storage", "core.cloudinary_storage"):
+    for mod_name in ("core.github_storage", "core.firebase_storage", "core.r2_storage", "core.cloudinary_storage"):
         try:
             mod = __import__(mod_name, fromlist=["enabled", "get_file"])
             if not mod.enabled():
@@ -241,7 +241,12 @@ async def get_overview():
         cl = cl_health()
     except Exception:
         cl = {"configured": False, "provider": "Cloudinary"}
-    providers = [p for p in [fb if fb.get("configured") else None, r2 if r2.get("configured") else None, cl if cl.get("configured") else None] if p]
+    try:
+        from core.github_storage import health as gh_health
+        gh = gh_health()
+    except Exception:
+        gh = {"configured": False, "provider": "GitHub"}
+    providers = [p for p in [fb if fb.get("configured") else None, r2 if r2.get("configured") else None, cl if cl.get("configured") else None, gh if gh.get("configured") else None] if p]
     if providers:
         file_store = providers[0].copy()
         if len(providers) > 1:
@@ -777,18 +782,31 @@ async def integrations_status():
         return ("*" * max(0, len(v) - 4)) + v[-4:] if len(v) > 4 else "*" * len(v)
     try:
         from core.firebase_storage import health as fb_storage_health
-        file_store = fb_storage_health()
+        fb = fb_storage_health()
     except Exception:
-        file_store = {"configured": False, "provider": "Firebase Storage"}
+        fb = {"configured": False, "provider": "Firebase Storage"}
     try:
         from core.r2_storage import health as r2_health
         r2 = r2_health()
-        if not file_store.get("configured") and r2.get("configured"):
-            file_store = r2
-        elif file_store.get("configured") and r2.get("configured"):
-            file_store = {**file_store, "provider": "Firebase Storage + Cloudflare R2"}
     except Exception:
-        pass
+        r2 = {"configured": False, "provider": "Cloudflare R2"}
+    try:
+        from core.cloudinary_storage import health as cl_health
+        cl = cl_health()
+    except Exception:
+        cl = {"configured": False, "provider": "Cloudinary"}
+    try:
+        from core.github_storage import health as gh_health
+        gh = gh_health()
+    except Exception:
+        gh = {"configured": False, "provider": "GitHub"}
+    providers = [p for p in [fb if fb.get("configured") else None, r2 if r2.get("configured") else None, cl if cl.get("configured") else None, gh if gh.get("configured") else None] if p]
+    if providers:
+        file_store = providers[0].copy()
+        if len(providers) > 1:
+            file_store["provider"] = " + ".join([p.get("provider", "storage") for p in providers])
+    else:
+        file_store = {"configured": False, "provider": "local files (temporary on Vercel)"}
     return {
         "gemini_api_key": {"configured": bool(Config.GEMINI_API_KEY), "masked": mask(Config.GEMINI_API_KEY)},
         "google_use_imagen": bool(getattr(Config, "GOOGLE_USE_IMAGEN", False)),
@@ -797,10 +815,15 @@ async def integrations_status():
         "firestore_project_id": {"configured": bool(Config.FIRESTORE_PROJECT_ID), "value": Config.FIRESTORE_PROJECT_ID},
         "firebase_service_account_json": {"configured": bool(Config.FIREBASE_SERVICE_ACCOUNT_JSON), "masked": mask(Config.FIREBASE_SERVICE_ACCOUNT_JSON)},
         "firebase_storage_bucket": {"configured": bool(getattr(Config, "FIREBASE_STORAGE_BUCKET", "")), "value": getattr(Config, "FIREBASE_STORAGE_BUCKET", "")},
+        "github_storage_token": {"configured": bool(getattr(Config, "GITHUB_STORAGE_TOKEN", "")), "masked": mask(getattr(Config, "GITHUB_STORAGE_TOKEN", ""))},
+        "github_storage_repo": {"configured": bool(getattr(Config, "GITHUB_STORAGE_REPO", "")), "value": getattr(Config, "GITHUB_STORAGE_REPO", "")},
+        "github_storage_branch": {"configured": bool(getattr(Config, "GITHUB_STORAGE_BRANCH", "")), "value": getattr(Config, "GITHUB_STORAGE_BRANCH", "main")},
+        "github_storage_path": {"configured": bool(getattr(Config, "GITHUB_STORAGE_PATH", "")), "value": getattr(Config, "GITHUB_STORAGE_PATH", "storage-assets")},
         "data_store": firestore_store.health(),
         "file_store": file_store,
+        "github_store": gh,
         "env_file": str(BASE_DIR / ".env"),
-        "note": "للوضع Firestore/Firebase: أضف FIRESTORE_PROJECT_ID وFIREBASE_SERVICE_ACCOUNT_JSON، ولتخزين الأصول (بديل R2) فعّل Firebase Storage وحدد FIREBASE_STORAGE_BUCKET (مثلاً: PROJECT_ID.firebasestorage.app). على Vercel أضف المتغيرات في Environment Variables وأعد النشر."
+        "note": "لتخزين الأصول على GitHub (بديل مجاني): أضف GITHUB_STORAGE_TOKEN (PAT بصلاحية contents) وGITHUB_STORAGE_REPO (owner/repo) وGITHUB_STORAGE_BRANCH وGITHUB_STORAGE_PATH. على Vercel أضفها في Environment Variables وأعد النشر."
     }
 
 
@@ -829,6 +852,18 @@ async def update_integration_keys(payload: Dict[str, Any] = Body(...)):
             updates["FIREBASE_SERVICE_ACCOUNT_JSON"] = sa
         elif "firebase_service_account_json" in payload and payload.get("firebase_service_account_json") == "":
             updates["FIREBASE_SERVICE_ACCOUNT_JSON"] = ""
+    if "github_storage_token" in payload:
+        tok = str(payload.get("github_storage_token") or "").strip()
+        if tok:
+            updates["GITHUB_STORAGE_TOKEN"] = tok
+        elif payload.get("github_storage_token") == "":
+            updates["GITHUB_STORAGE_TOKEN"] = ""
+    if "github_storage_repo" in payload:
+        updates["GITHUB_STORAGE_REPO"] = str(payload.get("github_storage_repo") or "").strip()
+    if "github_storage_branch" in payload:
+        updates["GITHUB_STORAGE_BRANCH"] = str(payload.get("github_storage_branch") or "main").strip() or "main"
+    if "github_storage_path" in payload:
+        updates["GITHUB_STORAGE_PATH"] = str(payload.get("github_storage_path") or "storage-assets").strip().strip("/") or "storage-assets"
     if not updates:
         raise HTTPException(status_code=400, detail="لم يتم إرسال أي مفاتيح/إعدادات للتحديث.")
     Config.set_runtime_env(updates)
@@ -839,6 +874,10 @@ async def update_integration_keys(payload: Dict[str, Any] = Body(...)):
     Config.FIRESTORE_PROJECT_ID = os.getenv("FIRESTORE_PROJECT_ID", Config.FIRESTORE_PROJECT_ID)
     Config.FIREBASE_SERVICE_ACCOUNT_JSON = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON", Config.FIREBASE_SERVICE_ACCOUNT_JSON)
     Config.FIREBASE_STORAGE_BUCKET = os.getenv("FIREBASE_STORAGE_BUCKET", getattr(Config, "FIREBASE_STORAGE_BUCKET", ""))
+    Config.GITHUB_STORAGE_TOKEN = os.getenv("GITHUB_STORAGE_TOKEN", getattr(Config, "GITHUB_STORAGE_TOKEN", ""))
+    Config.GITHUB_STORAGE_REPO = os.getenv("GITHUB_STORAGE_REPO", getattr(Config, "GITHUB_STORAGE_REPO", ""))
+    Config.GITHUB_STORAGE_BRANCH = os.getenv("GITHUB_STORAGE_BRANCH", getattr(Config, "GITHUB_STORAGE_BRANCH", "main"))
+    Config.GITHUB_STORAGE_PATH = os.getenv("GITHUB_STORAGE_PATH", getattr(Config, "GITHUB_STORAGE_PATH", "storage-assets"))
     # reset cached clients if config changed
     try:
         from core.firestore_store import _client

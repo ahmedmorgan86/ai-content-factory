@@ -1095,6 +1095,31 @@ async function loadSettings() {
                                 <span class="block text-[11px] text-slate-500 mt-1">عند تهيئة Firestore سيستخدمه التطبيق كمصدر للبيانات بدل CSV. على Vercel يُفضّل ضبط المتغيرات في Environment Variables وإعادة النشر.</span>
                             </label>
                         </div>
+                        <div class="md:col-span-2 p-3 rounded-xl border border-violet-500/20 bg-violet-500/5 space-y-3">
+                            <div class="flex items-center justify-between gap-2 flex-wrap">
+                                <div class="font-bold text-violet-300 flex items-center gap-2"><i class="fa-brands fa-github"></i><span>GitHub (تخزين الأصول مجانًا)</span></div>
+                                <span class="text-[10px] px-2 py-0.5 rounded-full ${integ.github_store?.configured ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-slate-700/40 text-slate-300 border border-slate-600/40'}">${integ.github_store?.configured ? (integ.github_store?.ok ? 'GitHub: متصل' : 'GitHub: مهيأ') : 'GitHub: غير مهيأ'}</span>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <label class="block">
+                                    <span class="block text-slate-300 font-bold mb-1">GITHUB_STORAGE_REPO (owner/repo)</span>
+                                    <input type="text" id="integration-github-repo" value="${escapeHtml(integ.github_storage_repo?.value || '')}" placeholder="مثال: ahmedmorgan86/ai-content-factory-assets" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-sky-500 font-mono">
+                                </label>
+                                <label class="block">
+                                    <span class="block text-slate-300 font-bold mb-1">GITHUB_STORAGE_BRANCH</span>
+                                    <input type="text" id="integration-github-branch" value="${escapeHtml(integ.github_storage_branch?.value || 'main')}" placeholder="main" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-sky-500 font-mono">
+                                </label>
+                            </div>
+                            <label class="block">
+                                <span class="block text-slate-300 font-bold mb-1">GITHUB_STORAGE_PATH</span>
+                                <input type="text" id="integration-github-path" value="${escapeHtml(integ.github_storage_path?.value || 'storage-assets')}" placeholder="storage-assets" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-sky-500 font-mono">
+                            </label>
+                            <label class="block">
+                                <span class="block text-slate-300 font-bold mb-1">GITHUB_STORAGE_TOKEN ${integ.github_storage_token?.masked ? `<span class="text-slate-500 font-mono">(محفوظ)</span>` : ''}</span>
+                                <input type="password" id="integration-github-token" placeholder="Personal Access Token بصلاحية contents (اتركه فارغًا لعدم التغيير)" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-sky-500 font-mono">
+                                <span class="block text-[11px] text-slate-500 mt-1">سيتم رفع الأصول المولدة (صوت/فيديو/صور) إلى هذا المستودع وخدمتها منه عند غياب الملفات محليًا. يفضّل Repo عام أو Token بصلاحية قراءة/كتابة للمحتوى. حد GitHub للملف عبر API ~100MB.</span>
+                            </label>
+                        </div>
                         <label class="block md:col-span-2">
                             <span class="block text-slate-300 font-bold mb-1">GEMINI_API_KEY ${integ.gemini_api_key?.masked ? `<span class="text-slate-500 font-mono">(${escapeHtml(integ.gemini_api_key.masked)})</span>` : ''}</span>
                             <input type="password" id="integration-gemini-key" placeholder="الصق مفتاح Google Gemini API هنا (اختياري للصوت/الصور)" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-sky-500 font-mono">
@@ -1129,15 +1154,20 @@ async function loadSettings() {
 async function saveIntegrationKeys() {
     const geminiInput = document.getElementById('integration-gemini-key');
     const saInput = document.getElementById('integration-firestore-sa');
+    const ghTokenInput = document.getElementById('integration-github-token');
     const payload = {
         google_tts_model: document.getElementById('integration-tts-model')?.value || '',
         google_image_model: document.getElementById('integration-image-model')?.value || '',
         google_use_imagen: !!document.getElementById('integration-use-imagen')?.checked,
         firestore_project_id: document.getElementById('integration-firestore-project')?.value || '',
-        firebase_storage_bucket: document.getElementById('integration-firebase-bucket')?.value || ''
+        firebase_storage_bucket: document.getElementById('integration-firebase-bucket')?.value || '',
+        github_storage_repo: document.getElementById('integration-github-repo')?.value || '',
+        github_storage_branch: document.getElementById('integration-github-branch')?.value || 'main',
+        github_storage_path: document.getElementById('integration-github-path')?.value || 'storage-assets'
     };
     if (geminiInput && geminiInput.value.trim()) payload.gemini_api_key = geminiInput.value.trim();
     if (saInput && saInput.value.trim()) payload.firebase_service_account_json = saInput.value.trim();
+    if (ghTokenInput && ghTokenInput.value.trim()) payload.github_storage_token = ghTokenInput.value.trim();
     try {
         const res = await apiFetch('/api/integrations/keys', {
             method: 'POST',
@@ -1148,9 +1178,10 @@ async function saveIntegrationKeys() {
         if (!res.ok || !data.success) throw new Error(data.detail || 'تعذر حفظ المفاتيح');
         if (geminiInput) geminiInput.value = '';
         if (saInput) saInput.value = '';
-        const msg = data.status?.data_store?.configured
-            ? 'تم حفظ الإعدادات. Firestore مهيأ ويمكن استخدامه كمصدر للبيانات.'
-            : 'تم حفظ إعدادات الربط وتطبيقها فورًا.';
+        if (ghTokenInput) ghTokenInput.value = '';
+        const msg = data.status?.file_store?.configured
+            ? `تم حفظ الإعدادات. تخزين الملفات: ${data.status.file_store.provider || 'مهيأ'}.`
+            : (data.status?.data_store?.configured ? 'تم حفظ الإعدادات. Firestore مهيأ ويمكن استخدامه كمصدر للبيانات.' : 'تم حفظ إعدادات الربط وتطبيقها فورًا.');
         showToast(msg, 'success');
         await loadSettings();
         await loadOverview();

@@ -61,7 +61,14 @@ class StorageEngine:
         """Upload generated assets to configured cloud file storage (Firebase Storage or R2)."""
         root = self.root_dir / idea_id
         providers = []
-        # Prefer Firebase Storage when configured (fits "Firestore/Firebase only" setups)
+        # Prefer GitHub when explicitly configured (user-requested free storage)
+        try:
+            from core import github_storage
+            if github_storage.enabled():
+                providers.append(("GitHub", github_storage))
+        except Exception:
+            pass
+        # Then other configured backends
         try:
             from core import firebase_storage
             if firebase_storage.enabled():
