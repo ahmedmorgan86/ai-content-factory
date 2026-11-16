@@ -960,7 +960,16 @@ async function runFullPipelineCycle() {
 
     try {
         const res = await fetch('/api/pipeline/run-full-cycle', { method: 'POST' });
-        const data = await res.json();
+        let data;
+        try {
+            data = await res.json();
+        } catch (_) {
+            data = { detail: res.statusText || 'تعذر قراءة استجابة الخادم.' };
+        }
+        if (!res.ok) {
+            showToast(`فشلت الدورة (${res.status}): ${data.detail || res.statusText}`, 'error');
+            return;
+        }
         if (data.success) {
             showToast(`تم إتمام دورة الإنتاج بالكامل للفكرة: ${data.title}!`, 'success');
             await loadOverview();
